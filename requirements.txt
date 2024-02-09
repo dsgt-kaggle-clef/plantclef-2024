@@ -1,0 +1,14 @@
+numpy
+pandas
+matplotlib
+pyspark >= 3.4.0
+imageio
+scikit-learn
+torch
+torchvision
+transformers
+
+# developer tools
+jupyterlab
+black
+pre-commit
