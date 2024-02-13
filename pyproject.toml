@@ -1,0 +1,23 @@
+[project]
+name = "plantclef"
+version = "0.0.1"
+authors = [{ name = "Anthony Miyaguchi", email = "acmiyaguchi@gatech.edu" }]
+description = "DS@GT PlantCLEF helper package"
+readme = "README.md"
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/dsgt-kaggle-clef/plantclef-2024"
+Issues = "https://github.com/dsgt-kaggle-clef/plantclef-2024/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = { file = "requirements.txt" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["plantclef"]
+namespaces = false
