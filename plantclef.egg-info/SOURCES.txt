@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+plantclef/__init__.py
+plantclef/images_to_parquet.py
+plantclef/test.py
+plantclef/utils.py
+plantclef.egg-info/PKG-INFO
+plantclef.egg-info/SOURCES.txt
+plantclef.egg-info/dependency_links.txt
+plantclef.egg-info/top_level.txt

@@ -1,3 +1,13 @@
+Metadata-Version: 2.1
+Name: plantclef
+Version: 0.0.1
+Summary: DS@GT PlantCLEF helper package
+Author-email: Anthony Miyaguchi <acmiyaguchi@gatech.edu>
+Project-URL: Homepage, https://github.com/dsgt-kaggle-clef/plantclef-2024
+Project-URL: Issues, https://github.com/dsgt-kaggle-clef/plantclef-2024/issues
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
 # plantclef-2024
 
 - https://www.imageclef.org/node/315
@@ -35,13 +45,11 @@ pip install -e .
 To run the `install_gcs_connector.sh` script, execute the following.
 
 Before running the script, you need to make sure it's executable. You can do this with the chmod command:
-
 ```
 chmod +x scripts/install_gcs_connector.sh
 ```
 
 Now that the script is executable, you can run it:
-
 ```
 sudo scripts/install_gcs_connector.sh
 ```
@@ -61,15 +69,12 @@ scripts/download_extract_dataset.sh [DATASET_URL] [DESTINATION_DIR]
 Replace **[DATASET_URL]** with the URL of the dataset you wish to download, and **[DESTINATION_DIR]** with the path where you want the dataset to be downloaded and extracted. If these arguments are not provided, the script will use its default settings.
 
 ### Example
-
 Make sure the script is executable before running it:
-
 ```
 chmod +x scripts/download_extract_dataset.sh
 ```
 
 Run the script:
-
 ```
 scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz /mnt/data
 ```
