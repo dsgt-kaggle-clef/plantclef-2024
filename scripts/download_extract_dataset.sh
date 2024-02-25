@@ -4,10 +4,10 @@
 # The dataset URL and destination directory are configurable.
 
 # Usage:
-# ./download_extract_dataset.sh [DATASET_URL] [DESTINATION_DIR]
+# scripts/download_extract_dataset.sh [DATASET_URL] [DESTINATION_DIR]
 #
 # Example:
-# ./download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz
+# scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz /mnt/data
 #
 # This will download the dataset from the specified URL and extract it to the specified destination directory.
 # If no arguments are provided, default values are used for both the dataset URL and destination directory.
