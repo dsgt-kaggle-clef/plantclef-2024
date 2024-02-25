@@ -28,7 +28,10 @@ else
 fi
 
 DATASET_NAME=$(basename "$DATASET_URL")
+# Remove the file extension to get the folder name
+FOLDER_NAME="${DATASET_NAME%.*.*}"
 DESTINATION_PATH="$DESTINATION_DIR/$DATASET_NAME"
+IMAGES_DIR="$DESTINATION_DIR/images"
 
 echo "Using dataset URL: $DATASET_URL"
 echo "Downloading dataset to: $DESTINATION_DIR"
@@ -49,6 +52,14 @@ gcloud storage cp "$DATASET_URL" "$DESTINATION_DIR" || {
 echo "Extracting dataset..."
 tar -xzf "$DESTINATION_PATH" -C "$DESTINATION_DIR"
 echo "Dataset extracted to $DESTINATION_DIR."
+
+# Rename the "images" directory if it exists
+if [ -d "$IMAGES_DIR" ]; then
+    echo "Renaming 'images' folder to '$FOLDER_NAME'"
+    mv "$IMAGES_DIR" "$DESTINATION_DIR/$FOLDER_NAME"
+else
+    echo "'images' directory not found, skipping rename."
+fi
 
 # Final listing and disk usage report
 echo "Final contents of $DESTINATION_DIR:"

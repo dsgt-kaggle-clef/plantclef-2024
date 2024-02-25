@@ -75,3 +75,49 @@ scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2
 ```
 
 This will download the `PlantCLEF2022_web_training_images_1.tar.gz` dataset from the specified Google Cloud Storage URL and extract it to `/mnt/data`.
+
+## Create a dataframe from images and write it to GCS
+
+The `images_to_parquet.py` script is designed to process image data and associated metadata for a specific dataset. It reads images and metadata from specified directories, performs necessary processing, and outputs the data in Parquet format to a GCS path. This script supports customizing paths for input data and output files through command-line arguments.
+
+### Usage
+
+Navigate to the project directory and run the script using the following command format:
+
+```
+python plantclef/images_to_parquet.py [OPTIONS]
+```
+
+**Options:**
+
+- `--image-root-path`: Base directory path for image data. Default is the current project directory.
+
+- `--raw-root-path`: Root directory path for metadata. Default is `gs://dsgt-clef-plantclef-2024/raw/`.
+
+- `--output-path`: GCS path for output Parquet files. Default is `gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2022_web_training_images_1`.
+
+- `--dataset-name`: Dataset name downloaded from the tar file. Default is `PlantCLEF2022_web_training_images_1`.
+
+- `--meta-dataset-name`: Train Metadata CSV file name. Default is `PlantCLEF2022_web_training_metadata`.
+
+### Example Commands
+
+Run the script with default settings:
+
+```
+python plantclef/images_to_parquet.py
+```
+
+Run the script with custom paths:
+
+```
+python plantclef/images_to_parquet.py --image-root-path /path/to/images --raw-root-path gs://my-custom-path/raw/ --output-path gs://my-custom-path/data/parquet_files/image_data --dataset-name MyDataset --meta-dataset-name MyMetadata
+```
+
+Here's an example for creating a parquet for the `PlantCLEF2022_web_training_images_1` dataset:
+
+```
+python plantclef/images_to_parquet.py --output-path gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2022_web_training_images_1 --dataset-name PlantCLEF2022_web_training_images_1 --meta-dataset-name PlantCLEF2022_web_training_metadata
+```
+
+For detailed help on command-line options, run `python plantclef/images_to_parquet.py --help`.
