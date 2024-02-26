@@ -28,17 +28,10 @@ def create_dataframe(spark, base_dir: Path, raw_root_path: str, meta_dataset_nam
     # Remove "file:{base_dir.parents[0]" from path column
     image_df = image_df.withColumn("path", regexp_replace("path", to_remove, ""))
 
-    # Split the path into an array of elements
-    split_path = split(image_df["path"], "/")
-
-    # Extract metadata from the file path
-    image_final_df = image_df.withColumn("file_name", element_at(split_path, -1))
-
     # Select and rename columns to fit the target schema, including renaming 'content' to 'data'
-    image_final_df = image_final_df.select(
+    image_final_df = image_df.select(
         "path",
-        "file_name",
-        image_final_df["content"].alias("data"),
+        image_df["content"].alias("data"),
     )
 
     # Create a new column "image_path" by removing "/images/" from "path"
