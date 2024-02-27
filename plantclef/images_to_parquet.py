@@ -1,8 +1,7 @@
 import argparse
-import os
 from pathlib import Path
 
-from pyspark.sql.functions import element_at, regexp_replace, split
+from pyspark.sql.functions import regexp_replace
 
 from plantclef.utils import get_spark
 
