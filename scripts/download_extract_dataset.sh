@@ -7,7 +7,7 @@
 # scripts/download_extract_dataset.sh [DATASET_URL] [DESTINATION_DIR]
 #
 # Example:
-# scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz /mnt/data
+# scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2024singleplanttrainingdata.tar /mnt/data
 #
 # This will download the dataset from the specified URL and extract it to the specified destination directory.
 # If no arguments are provided, default values are used for both the dataset URL and destination directory.
@@ -15,7 +15,7 @@
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # Default values
-DEFAULT_DATASET_URL="gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz"
+DEFAULT_DATASET_URL="gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2024singleplanttrainingdata.tar"
 DEFAULT_DESTINATION_DIR="/mnt/data"
 
 # Check if custom arguments are provided

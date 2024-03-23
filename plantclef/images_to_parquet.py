@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from pyspark.sql.functions import regexp_replace
+from pyspark.sql import functions as F
 
 from plantclef.utils import get_spark
 
@@ -25,17 +25,16 @@ def create_dataframe(spark, base_dir: Path, raw_root_path: str, meta_dataset_nam
     to_remove = "file:" + str(base_dir.parents[0])
 
     # Remove "file:{base_dir.parents[0]" from path column
-    image_df = image_df.withColumn("path", regexp_replace("path", to_remove, ""))
+    image_df = image_df.withColumn("path", F.regexp_replace("path", to_remove, ""))
+
+    # Split the path into an array of elements
+    split_path = F.split(image_df["path"], "/")
 
     # Select and rename columns to fit the target schema, including renaming 'content' to 'data'
     image_final_df = image_df.select(
         "path",
-        image_df["content"].alias("data"),
-    )
-
-    # Create a new column "image_path" by removing "/images/" from "path"
-    image_final_df = image_final_df.withColumn(
-        "image_path", regexp_replace("path", f"^/{base_dir.parts[-1]}/", "")
+        F.element_at(split_path, -1).alias("image_name"),
+        F.col("content").alias("data"),
     )
 
     # Read the iNaturalist metadata CSV file
@@ -46,14 +45,13 @@ def create_dataframe(spark, base_dir: Path, raw_root_path: str, meta_dataset_nam
         sep=";",  # specify semicolon as delimiter
     )
 
-    # Cache the DataFrame to optimize subsequent operations
-    meta_df.cache()
-
     # Drop duplicate entries based on 'image_path' before the join
-    meta_final_df = meta_df.dropDuplicates(["image_path"])
+    meta_final_df = meta_df.dropDuplicates(["image_name"])
 
     # Perform an inner join on the 'image_path' column
-    final_df = image_final_df.join(meta_final_df, "image_path", "inner")
+    final_df = image_final_df.join(meta_final_df, "image_name", "inner").repartition(
+        500, "species_id"
+    )
 
     return final_df
 
@@ -64,10 +62,13 @@ def parse_args():
         description="Process images and metadata for a dataset stored on GCS."
     )
     parser.add_argument(
-        "--image-root-path",
+        "--cores", type=int, default=4, help="Number of cores used in Spark driver"
+    )
+    parser.add_argument(
+        "--memory",
         type=str,
-        default=str(Path(".").resolve()),
-        help="Base directory path for image data",
+        default="8g",
+        help="Amount of memory to use in Spark driver",
     )
     parser.add_argument(
         "--raw-root-path",
@@ -84,13 +85,13 @@ def parse_args():
     parser.add_argument(
         "--dataset-name",
         type=str,
-        default="PlantCLEF-small_size",
+        default="PlantCLEF2024",
         help="Dataset name downloaded from tar file",
     )
     parser.add_argument(
         "--meta-dataset-name",
         type=str,
-        default="PlantCLEF2022_web_training_metadata",
+        default="PlantCLEF2024singleplanttrainingdata",
         help="Train Metadata CSV file",
     )
 
@@ -101,8 +102,8 @@ def main():
     """Main function that processes data and writes the output dataframe to GCS"""
     args = parse_args()
 
-    # Initialize Spark
-    spark = get_spark()
+    # Initialize Spark with settings for using the big-disk-dev VM
+    spark = get_spark(cores=8, memory="28g", **{"spark.sql.shuffle.partitions": 500})
 
     # Convert image-root-path to a Path object here
     base_dir = Path(args.image_root_path) / "data" / args.dataset_name
