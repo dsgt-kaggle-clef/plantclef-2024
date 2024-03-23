@@ -60,6 +60,11 @@ fi
 
 echo "Dataset extracted to $DESTINATION_DIR."
 
+# After extraction, delete the downloaded .tar or .tar.gz file to free up space
+echo "Deleting the downloaded compressed file to free up space..."
+rm "$DESTINATION_PATH"
+echo "Compressed file deleted."
+
 # Rename the "images" directory if it exists
 if [ -d "$IMAGES_DIR" ]; then
     FOLDER_NAME=$(basename "$DATASET_NAME" .tar.gz)
