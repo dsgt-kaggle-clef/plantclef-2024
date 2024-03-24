@@ -79,7 +79,7 @@ def parse_args():
     parser.add_argument(
         "--output-path",
         type=str,
-        default="gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF-small_size",
+        default="gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2024_training",
         help="GCS path for output Parquet files",
     )
     parser.add_argument(
@@ -103,7 +103,9 @@ def main():
     args = parse_args()
 
     # Initialize Spark with settings for using the big-disk-dev VM
-    spark = get_spark(cores=8, memory="28g", **{"spark.sql.shuffle.partitions": 500})
+    spark = get_spark(
+        cores=args.cores, memory=args.memory, **{"spark.sql.shuffle.partitions": 500}
+    )
 
     # Convert image-root-path to a Path object here
     base_dir = Path(args.image_root_path) / "data" / args.dataset_name
