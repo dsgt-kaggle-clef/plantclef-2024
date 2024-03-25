@@ -1,3 +1,5 @@
+![banner](/figures/plantclef-banner.png)
+
 # plantclef-2024
 
 - https://www.imageclef.org/node/315
@@ -90,7 +92,9 @@ python plantclef/images_to_parquet.py [OPTIONS]
 
 **Options:**
 
-- `--image-root-path`: Base directory path for image data. Default is the current project directory.
+- `--cores`: Number of cores used in Spark. Default is `4`.
+
+- `--memory`: Amount of memory capacity to use in Spark driver. Default is `8g`.
 
 - `--raw-root-path`: Root directory path for metadata. Default is `gs://dsgt-clef-plantclef-2024/raw/`.
 
@@ -111,13 +115,25 @@ python plantclef/images_to_parquet.py
 Run the script with custom paths:
 
 ```
-python plantclef/images_to_parquet.py --image-root-path /path/to/images --raw-root-path gs://my-custom-path/raw/ --output-path gs://my-custom-path/data/parquet_files/image_data --dataset-name MyDataset --meta-dataset-name MyMetadata
+python plantclef/images_to_parquet.py --raw-root-path gs://my-custom-path/raw/ --output-path gs://my-custom-path/data/parquet_files/image_data --dataset-name MyDataset --meta-dataset-name MyMetadata
 ```
 
 Here's an example for creating a parquet for the `PlantCLEF2022_web_training_images_1` dataset:
 
 ```
-python plantclef/images_to_parquet.py --output-path gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2022_web_training_images_1 --dataset-name PlantCLEF2022_web_training_images_1 --meta-dataset-name PlantCLEF2022_web_training_metadata
+python plantclef/images_to_parquet.py --cores 4 --memory 8g --output-path gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2022_web_training_images_1 --dataset-name PlantCLEF2022_web_training_images_1 --meta-dataset-name PlantCLEF2022_web_training_metadata
+```
+
+Another example running the pipeline on the PlantCLEF 2024 datase:
+
+```
+python plantclef/images_to_parquet.py --cores 8 --memory 28g --output-path gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2024_training --dataset-name PlantCLEF2024 --meta-dataset-name PlantCLEF2024singleplanttrainingdata
+```
+
+To check for the dataset size in GCS, run the following:
+
+```
+gcloud storage du --readable-sizes gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2024_training_cropped_resized_v2/
 ```
 
 For detailed help on command-line options, run `python plantclef/images_to_parquet.py --help`.

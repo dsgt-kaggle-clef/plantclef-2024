@@ -7,7 +7,7 @@
 # scripts/download_extract_dataset.sh [DATASET_URL] [DESTINATION_DIR]
 #
 # Example:
-# scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz /mnt/data
+# scripts/download_extract_dataset.sh gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2024singleplanttrainingdata.tar /mnt/data
 #
 # This will download the dataset from the specified URL and extract it to the specified destination directory.
 # If no arguments are provided, default values are used for both the dataset URL and destination directory.
@@ -15,7 +15,7 @@
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # Default values
-DEFAULT_DATASET_URL="gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2022_web_training_images_1.tar.gz"
+DEFAULT_DATASET_URL="gs://dsgt-clef-plantclef-2024/raw/PlantCLEF2024singleplanttrainingdata.tar"
 DEFAULT_DESTINATION_DIR="/mnt/data"
 
 # Check if custom arguments are provided
@@ -28,8 +28,6 @@ else
 fi
 
 DATASET_NAME=$(basename "$DATASET_URL")
-# Remove the file extension to get the folder name
-FOLDER_NAME="${DATASET_NAME%.*.*}"
 DESTINATION_PATH="$DESTINATION_DIR/$DATASET_NAME"
 IMAGES_DIR="$DESTINATION_DIR/images"
 
@@ -49,12 +47,28 @@ gcloud storage cp "$DATASET_URL" "$DESTINATION_DIR" || {
 }
 
 # Extract the dataset
-echo "Extracting dataset..."
-tar -xzf "$DESTINATION_PATH" -C "$DESTINATION_DIR"
+if [[ "$DATASET_NAME" == *.tar.gz ]]; then
+    echo "Extracting dataset..."
+    pigz -dc "$DESTINATION_PATH" | tar xf - -C "$DESTINATION_DIR"
+elif [[ "$DATASET_NAME" == *.tar ]]; then
+    echo "Extracting dataset..."
+    tar -xf "$DESTINATION_PATH" -C "$DESTINATION_DIR"
+else
+    echo "Unsupported file format."
+    exit 1
+fi
+
 echo "Dataset extracted to $DESTINATION_DIR."
+
+# After extraction, delete the downloaded .tar or .tar.gz file to free up space
+echo "Deleting the downloaded compressed file to free up space..."
+rm "$DESTINATION_PATH"
+echo "Compressed file deleted."
 
 # Rename the "images" directory if it exists
 if [ -d "$IMAGES_DIR" ]; then
+    FOLDER_NAME=$(basename "$DATASET_NAME" .tar.gz)
+    FOLDER_NAME=${FOLDER_NAME%.tar} # Update for both .tar and .tar.gz
     echo "Renaming 'images' folder to '$FOLDER_NAME'"
     mv "$IMAGES_DIR" "$DESTINATION_DIR/$FOLDER_NAME"
 else
