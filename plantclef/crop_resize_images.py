@@ -105,11 +105,8 @@ def main():
     # Register the UDF with BinaryType return type
     crop_resize_udf = F.udf(crop_resize_images, BinaryType())
 
-    # Select small batch size from DataFrame to test UDF
-    image_df = train_df.limit(100)
-
     # Apply the UDF to crop and resize the images
-    crop_df = image_df.withColumn(
+    crop_df = train_df.withColumn(
         "cropped_image_data",
         crop_resize_udf(
             F.col("data"), F.lit(args.square_size), F.lit(args.square_size)
