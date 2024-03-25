@@ -113,8 +113,15 @@ def main():
         ),
     )
 
+    # Drop the original 'data' column and rename 'cropped_image_data' to 'data'
+    final_df = (
+        crop_df.drop("data")
+        .withColumnRenamed("cropped_image_data", "data")
+        .repartition(500, "species_id")
+    )
+
     # Write the DataFrame to GCS in Parquet format
-    crop_df.write.mode("overwrite").parquet(args.output_path)
+    final_df.write.mode("overwrite").parquet(args.output_path)
 
 
 if __name__ == "__main__":

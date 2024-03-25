@@ -130,4 +130,10 @@ Another example running the pipeline on the PlantCLEF 2024 datase:
 python plantclef/images_to_parquet.py --cores 8 --memory 28g --output-path gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2024_training --dataset-name PlantCLEF2024 --meta-dataset-name PlantCLEF2024singleplanttrainingdata
 ```
 
+To check for the dataset size in GCS, run the following:
+
+```
+gcloud storage du --readable-sizes gs://dsgt-clef-plantclef-2024/data/parquet_files/PlantCLEF2024_training_cropped_resized_v2/
+```
+
 For detailed help on command-line options, run `python plantclef/images_to_parquet.py --help`.
