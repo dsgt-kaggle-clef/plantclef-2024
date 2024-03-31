@@ -8,7 +8,13 @@ os.environ["PYSPARK_PYTHON"] = sys.executable
 os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 
-def get_spark(cores=4, memory="8g", local_dir="/mnt/data/tmp", **kwargs):
+def get_spark(
+    cores=os.cpu_count(),
+    memory=f"{int(os.cpu_count()*3)}g",
+    local_dir="/mnt/data/tmp",
+    app_name="plantclef",
+    **kwargs,
+):
     """Get a spark session for a single driver."""
     builder = (
         SparkSession.builder.config("spark.driver.memory", memory)
@@ -19,7 +25,7 @@ def get_spark(cores=4, memory="8g", local_dir="/mnt/data/tmp", **kwargs):
     )
     for k, v in kwargs.items():
         builder = builder.config(k, v)
-    return builder.getOrCreate()
+    return builder.appName(app_name).getOrCreate()
 
 
 @contextmanager
