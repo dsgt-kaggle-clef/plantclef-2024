@@ -71,6 +71,12 @@ def parse_args():
         help="Amount of memory to use in Spark driver",
     )
     parser.add_argument(
+        "--image-root-path",
+        type=str,
+        default=str(Path(".").resolve()),
+        help="Base directory path for image data",
+    )
+    parser.add_argument(
         "--raw-root-path",
         type=str,
         default="gs://dsgt-clef-plantclef-2024/raw/",
@@ -107,7 +113,7 @@ def main():
         cores=args.cores, memory=args.memory, **{"spark.sql.shuffle.partitions": 500}
     )
 
-    # Convert image-root-path to a Path object here
+    # Convert raw-root-path to a Path object here
     base_dir = Path(args.image_root_path) / "data" / args.dataset_name
 
     # Create image dataframe
