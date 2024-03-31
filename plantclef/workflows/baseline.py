@@ -124,7 +124,7 @@ def parse_args():
         help="Root directory for training data in GCS",
     )
     parser.add_argument(
-        "--output-name",
+        "--output-name-path",
         type=str,
         default="data/process/training_cropped_resized_v2",
         help="GCS path for output Parquet files",
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     args = parse_args()
     # Input and output paths
     input_path = f"{args.gcs_root_path}/{args.train_data_path}"
-    output_path = f"{args.gcs_root_path}/{args.output_name}"
+    output_path = f"{args.gcs_root_path}/{args.output_name_path}"
 
     luigi.build(
         [Workflow(input_path=input_path, output_path=output_path)],
