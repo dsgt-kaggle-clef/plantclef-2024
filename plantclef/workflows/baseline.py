@@ -118,7 +118,7 @@ class Workflow(luigi.Task):
             output_path=f"{self.output_path}/dino",
         )
         yield ProcessDCT(
-            input_path=f"{self.output_path}/dino",
+            input_path=f"{self.output_path}/dino/data",
             output_path=f"{self.output_path}/dino_dct",
         )
 
