@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 
-def plot_images_from_binary(image_data_list, binomial_names, grid_size=(3, 3)):
+def plot_images_from_binary(df, data_col: str, image_col: str, grid_size=(3, 3)):
     """
     Display images in a grid with binomial names as labels.
 
@@ -17,13 +17,18 @@ def plot_images_from_binary(image_data_list, binomial_names, grid_size=(3, 3)):
     # Unpack the number of rows and columns for the grid
     rows, cols = grid_size
 
+    # Collect binary image data from DataFrame
+    subset_df = df.limit(rows * cols).collect()
+    image_data_list = [row[data_col] for row in subset_df]
+    image_names = [row[image_col] for row in subset_df]
+
     # Create a matplotlib subplot with the specified grid size
     fig, axes = plt.subplots(rows, cols, figsize=(12, 12), dpi=80)
 
     # Flatten the axes array for easy iteration if it's 2D
     axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
 
-    for ax, binary_data, name in zip(axes, image_data_list, binomial_names):
+    for ax, binary_data, name in zip(axes, image_data_list, image_names):
         # Convert binary data to an image and display it
         image = Image.open(io.BytesIO(binary_data))
         ax.imshow(image)
@@ -36,7 +41,7 @@ def plot_images_from_binary(image_data_list, binomial_names, grid_size=(3, 3)):
     plt.show()
 
 
-def plot_images_from_embeddings(embedding_data_list, species_names, grid_size=(3, 3)):
+def plot_images_from_embeddings(df, data_col: str, image_col: str, grid_size=(3, 3)):
     """
     Display images in a grid with binomial names as labels.
 
@@ -47,13 +52,18 @@ def plot_images_from_embeddings(embedding_data_list, species_names, grid_size=(3
     # Unpack the number of rows and columns for the grid
     rows, cols = grid_size
 
+    # Collect binary image data from DataFrame
+    subset_df = df.limit(rows * cols).collect()
+    embedding_data_list = [row[data_col] for row in subset_df]
+    image_names = [row[image_col] for row in subset_df]
+
     # Create a matplotlib subplot with specified grid size
     fig, axes = plt.subplots(rows, cols, figsize=(12, 12), dpi=80)
 
     # Flatten the axes array for easy iteration
     axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
 
-    for ax, embedding, name in zip(axes, embedding_data_list, species_names):
+    for ax, embedding, name in zip(axes, embedding_data_list, image_names):
         # Find the next perfect square size greater than or equal to the embedding length
         next_square = math.ceil(math.sqrt(len(embedding))) ** 2
         padding_size = next_square - len(embedding)

@@ -108,11 +108,6 @@ class Workflow(luigi.Task):
     output_path = luigi.Parameter()
 
     def run(self):
-        feature_columns = {
-            "dino": "data",
-            "dct": "dino_embedding",
-        }
-
         yield ProcessDino(
             input_path=self.input_path,
             output_path=f"{self.output_path}/dino",

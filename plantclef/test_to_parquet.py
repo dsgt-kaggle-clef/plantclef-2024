@@ -1,14 +1,14 @@
+"""
+Before running this script, make sure you have downloaded and extracted the test dataset into the data folder.
+Use the bash file `download_extract_dataset.sh` in the scripts folder.
+"""
+
 import argparse
 from pathlib import Path
 
 from pyspark.sql import functions as F
 
 from plantclef.utils import get_spark
-
-"""
-Before running this script, make sure you have downloaded and extracted the test dataset into the data folder.
-Use the bash file `download_extract_dataset.sh` in the scripts folder.
-"""
 
 
 def create_test_dataframe(spark, base_dir: Path):
