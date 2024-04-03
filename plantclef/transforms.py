@@ -42,6 +42,7 @@ class WrappedDinoV2(
         processor = AutoImageProcessor.from_pretrained(self.model_name)
         model = AutoModel.from_pretrained(self.model_name)
 
+        # Move model to GPU
         if torch.cuda.is_available():
             model = model.to("cuda")
 

@@ -38,11 +38,25 @@ class ProcessBase(luigi.Task):
             transformed = transformed.withColumn(c, vector_to_array(F.col(c)))
         return transformed
 
+    def _get_subset(self, df):
+        # Get subset of images to test pipeline
+        subset_df = (
+            df.where(F.col("species_id").isin([1361703, 1355927]))
+            .orderBy(F.rand(1000))
+            .limit(200)
+            .cache()
+        )
+        return subset_df
+
     def run(self):
         with spark_resource(
             **{"spark.sql.shuffle.partitions": max(self.num_partitions, 200)}
         ) as spark:
             df = spark.read.parquet(self.input_path)
+
+            # Get subset of data to test pipeline
+            df = self._get_subset(df=df)
+
             model = self.pipeline().fit(df)
             model.write().overwrite().save(f"{self.output_path}/model")
             transformed = self.transform(model, df, self.feature_columns)
