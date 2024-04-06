@@ -16,8 +16,10 @@ from plantclef.utils import spark_resource
 class ProcessBase(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
-    should_subset = luigi.Parameter(default=False)
+    should_subset = luigi.BoolParameter(default=False)
     num_partitions = luigi.IntParameter(default=500)
+    sample_id = luigi.OptionalIntParameter(default=None)
+    num_sample_id = luigi.IntParameter(default=10)
 
     def output(self):
         # save both the model pipeline and the dataset
@@ -32,6 +34,16 @@ class ProcessBase(luigi.Task):
 
     def transform(self, model, df, features) -> DataFrame:
         transformed = model.transform(df)
+
+        if self.sample_id is not None:
+            transformed = (
+                transformed.withColumn(
+                    "sample_id", F.crc32("species_id") % self.num_sample_id
+                )
+                .where(F.col("sample_id") == self.sample_id)
+                .drop("sample_id")
+            )
+
         for c in features:
             # check if the feature is a vector and convert it to an array
             if "array" in transformed.schema[c].simpleString():
@@ -62,9 +74,15 @@ class ProcessBase(luigi.Task):
             model = self.pipeline().fit(df)
             model.write().overwrite().save(f"{self.output_path}/model")
             transformed = self.transform(model, df, self.feature_columns)
-            transformed.repartition(self.num_partitions).write.mode(
-                "overwrite"
-            ).parquet(f"{self.output_path}/data")
+
+            if self.sample_id is not None:
+                transformed.repartition(self.num_partitions).write.mode(
+                    "overwrite"
+                ).parquet(f"{self.output_path}/data/sample_id={self.sample_id}")
+            else:
+                transformed.repartition(self.num_partitions).write.mode(
+                    "overwrite"
+                ).parquet(f"{self.output_path}/data")
 
         # now write the success file
         with self.output().open("w") as f:
@@ -110,11 +128,8 @@ class Workflow(luigi.Task):
     output_path = luigi.Parameter()
 
     def run(self):
-        # Set the first job to run on a subset, and the second to run on the entire data
-        should_subset = [True, False]
-
         # Run jobs with subset and full-size data
-        for subset in should_subset:
+        for subset in [True, False]:
             final_output_path = self.output_path
             if subset:
                 subset_path = f"subset_{self.output_path.split('/')[-1]}"
@@ -122,13 +137,18 @@ class Workflow(luigi.Task):
                     self.output_path.split("/")[-1], subset_path
                 )
 
-            yield ProcessDino(
-                input_path=self.input_path,
-                output_path=f"{final_output_path}/dino",
-                should_subset=subset,
-            )
+            yield [
+                ProcessDino(
+                    input_path=self.input_path,
+                    output_path=f"{final_output_path}/dino",
+                    should_subset=subset,
+                    sample_id=i,
+                    num_sample_id=10,
+                )
+                for i in range(10)
+            ]
             yield ProcessDCT(
-                input_path=f"{self.output_path}/dino/data",
+                input_path=f"{final_output_path}/dino/data",
                 output_path=f"{final_output_path}/dino_dct",
                 should_subset=subset,
             )
