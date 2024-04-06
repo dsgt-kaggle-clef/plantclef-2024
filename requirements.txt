@@ -9,6 +9,11 @@ torchvision
 transformers
 opencv-python
 Pillow
+luigi
+google-api-python-client
+google-auth
+gcsfs
+fsspec
 
 # developer tools
 jupyterlab
