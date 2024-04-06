@@ -42,19 +42,18 @@ class WrappedDinoV2(
         processor = AutoImageProcessor.from_pretrained(self.model_name)
         model = AutoModel.from_pretrained(self.model_name)
 
-        # Move model to GPU
-        if torch.cuda.is_available():
-            model = model.to("cuda")
+        # Move model to GPU if available
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
 
         def predict(inputs: np.ndarray) -> np.ndarray:
             images = [Image.open(io.BytesIO(input)) for input in inputs]
             model_inputs = processor(images=images, return_tensors="pt")
 
-            # Move inputs to GPU
-            if torch.cuda.is_available():
-                model_inputs = {
-                    key: value.to("cuda") for key, value in model_inputs.items()
-                }
+            # Move inputs to device
+            model_inputs = {
+                key: value.to(device) for key, value in model_inputs.items()
+            }
 
             with torch.no_grad():
                 outputs = model(**model_inputs)

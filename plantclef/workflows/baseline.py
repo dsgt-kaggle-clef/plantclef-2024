@@ -16,6 +16,7 @@ from plantclef.utils import spark_resource
 class ProcessBase(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
+    should_subset = luigi.Parameter(default=False)
     num_partitions = luigi.IntParameter(default=500)
 
     def output(self):
@@ -50,12 +51,13 @@ class ProcessBase(luigi.Task):
 
     def run(self):
         with spark_resource(
-            **{"spark.sql.shuffle.partitions": max(self.num_partitions, 200)}
+            **{"spark.sql.shuffle.partitions": self.num_partitions}
         ) as spark:
             df = spark.read.parquet(self.input_path)
 
-            # Get subset of data to test pipeline
-            df = self._get_subset(df=df)
+            if self.should_subset:
+                # Get subset of data to test pipeline
+                df = self._get_subset(df=df)
 
             model = self.pipeline().fit(df)
             model.write().overwrite().save(f"{self.output_path}/model")
@@ -106,15 +108,18 @@ class ProcessDCT(ProcessBase):
 class Workflow(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
+    should_subset = luigi.Parameter(default=False)
 
     def run(self):
         yield ProcessDino(
             input_path=self.input_path,
             output_path=f"{self.output_path}/dino",
+            should_subset=self.should_subset,
         )
         yield ProcessDCT(
             input_path=f"{self.output_path}/dino/data",
             output_path=f"{self.output_path}/dino_dct",
+            should_subset=self.should_subset,
         )
 
 
@@ -138,6 +143,12 @@ def parse_args():
         default="data/process/training_cropped_resized_v2",
         help="GCS path for output Parquet files",
     )
+    parser.add_argument(
+        "--should-subset",
+        type=str,
+        default=False,
+        help="Runs the Luigi pipeline with a subset of the data",
+    )
     return parser.parse_args()
 
 
@@ -146,8 +157,15 @@ if __name__ == "__main__":
     # Input and output paths
     input_path = f"{args.gcs_root_path}/{args.train_data_path}"
     output_path = f"{args.gcs_root_path}/{args.output_name_path}"
+    should_subset = args.should_subset
 
     luigi.build(
-        [Workflow(input_path=input_path, output_path=output_path)],
+        [
+            Workflow(
+                input_path=input_path,
+                output_path=output_path,
+                should_subset=should_subset,
+            )
+        ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
     )
