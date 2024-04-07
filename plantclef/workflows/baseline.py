@@ -16,12 +16,19 @@ from plantclef.utils import spark_resource
 class ProcessBase(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
-    should_subset = luigi.Parameter(default=False)
+    should_subset = luigi.BoolParameter(default=False)
     num_partitions = luigi.IntParameter(default=500)
+    sample_id = luigi.OptionalIntParameter(default=None)
+    num_sample_id = luigi.IntParameter(default=10)
 
     def output(self):
-        # save both the model pipeline and the dataset
-        return luigi.contrib.gcs.GCSTarget(f"{self.output_path}/_SUCCESS")
+        if self.should_subset:
+            # save both the model pipeline and the dataset
+            return luigi.contrib.gcs.GCSTarget(f"{self.output_path}/_SUCCESS")
+        else:
+            return luigi.contrib.gcs.GCSTarget(
+                f"{self.output_path}/data/sample_id={self.sample_id}"
+            )
 
     @property
     def feature_columns(self) -> list:
@@ -32,6 +39,17 @@ class ProcessBase(luigi.Task):
 
     def transform(self, model, df, features) -> DataFrame:
         transformed = model.transform(df)
+
+        if self.sample_id is not None:
+            transformed = (
+                transformed.withColumn(
+                    "sample_id",
+                    F.crc32(F.col("species_id").cast("string")) % self.num_sample_id,
+                )
+                .where(F.col("sample_id") == self.sample_id)
+                .drop("sample_id")
+            )
+
         for c in features:
             # check if the feature is a vector and convert it to an array
             if "array" in transformed.schema[c].simpleString():
@@ -62,9 +80,11 @@ class ProcessBase(luigi.Task):
             model = self.pipeline().fit(df)
             model.write().overwrite().save(f"{self.output_path}/model")
             transformed = self.transform(model, df, self.feature_columns)
-            transformed.repartition(self.num_partitions).write.mode(
-                "overwrite"
-            ).parquet(f"{self.output_path}/data")
+
+            if self.sample_id is not None:
+                transformed.repartition(self.num_partitions).write.mode(
+                    "overwrite"
+                ).parquet(f"{self.output_path}/data/sample_id={self.sample_id}")
 
         # now write the success file
         with self.output().open("w") as f:
@@ -108,19 +128,32 @@ class ProcessDCT(ProcessBase):
 class Workflow(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
-    should_subset = luigi.Parameter(default=False)
 
     def run(self):
-        yield ProcessDino(
-            input_path=self.input_path,
-            output_path=f"{self.output_path}/dino",
-            should_subset=self.should_subset,
-        )
-        yield ProcessDCT(
-            input_path=f"{self.output_path}/dino/data",
-            output_path=f"{self.output_path}/dino_dct",
-            should_subset=self.should_subset,
-        )
+        # Run jobs with subset and full-size data
+        for subset in [True, False]:
+            final_output_path = self.output_path
+            if subset:
+                subset_path = f"subset_{self.output_path.split('/')[-1]}"
+                final_output_path = self.output_path.replace(
+                    self.output_path.split("/")[-1], subset_path
+                )
+
+            yield [
+                ProcessDino(
+                    input_path=self.input_path,
+                    output_path=f"{final_output_path}/dino",
+                    should_subset=subset,
+                    sample_id=i,
+                    num_sample_id=10,
+                )
+                for i in range(10)
+            ]
+            yield ProcessDCT(
+                input_path=f"{final_output_path}/dino/data",
+                output_path=f"{final_output_path}/dino_dct",
+                should_subset=subset,
+            )
 
 
 def parse_args():
@@ -143,12 +176,6 @@ def parse_args():
         default="data/process/training_cropped_resized_v2",
         help="GCS path for output Parquet files",
     )
-    parser.add_argument(
-        "--should-subset",
-        type=str,
-        default=False,
-        help="Runs the Luigi pipeline with a subset of the data",
-    )
     return parser.parse_args()
 
 
@@ -157,14 +184,12 @@ if __name__ == "__main__":
     # Input and output paths
     input_path = f"{args.gcs_root_path}/{args.train_data_path}"
     output_path = f"{args.gcs_root_path}/{args.output_name_path}"
-    should_subset = args.should_subset
 
     luigi.build(
         [
             Workflow(
                 input_path=input_path,
                 output_path=output_path,
-                should_subset=should_subset,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
