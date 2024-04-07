@@ -22,8 +22,13 @@ class ProcessBase(luigi.Task):
     num_sample_id = luigi.IntParameter(default=10)
 
     def output(self):
-        # save both the model pipeline and the dataset
-        return luigi.contrib.gcs.GCSTarget(f"{self.output_path}/_SUCCESS")
+        if self.should_subset:
+            # save both the model pipeline and the dataset
+            return luigi.contrib.gcs.GCSTarget(f"{self.output_path}/_SUCCESS")
+        else:
+            return luigi.contrib.gcs.GCSTarget(
+                f"{self.output_path}/data/sample_id={self.sample_id}"
+            )
 
     @property
     def feature_columns(self) -> list:
@@ -80,10 +85,6 @@ class ProcessBase(luigi.Task):
                 transformed.repartition(self.num_partitions).write.mode(
                     "overwrite"
                 ).parquet(f"{self.output_path}/data/sample_id={self.sample_id}")
-            else:
-                transformed.repartition(self.num_partitions).write.mode(
-                    "overwrite"
-                ).parquet(f"{self.output_path}/data")
 
         # now write the success file
         with self.output().open("w") as f:
