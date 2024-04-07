@@ -38,7 +38,8 @@ class ProcessBase(luigi.Task):
         if self.sample_id is not None:
             transformed = (
                 transformed.withColumn(
-                    "sample_id", F.crc32("species_id") % self.num_sample_id
+                    "sample_id",
+                    F.crc32(F.col("species_id").cast("string")) % self.num_sample_id,
                 )
                 .where(F.col("sample_id") == self.sample_id)
                 .drop("sample_id")
