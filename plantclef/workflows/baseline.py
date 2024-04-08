@@ -22,12 +22,12 @@ class ProcessBase(luigi.Task):
     num_sample_id = luigi.IntParameter(default=10)
 
     def output(self):
-        if self.should_subset:
+        if self.sample_id is None:
             # save both the model pipeline and the dataset
-            return luigi.contrib.gcs.GCSTarget(f"{self.output_path}/_SUCCESS")
+            return luigi.contrib.gcs.GCSTarget(f"{self.output_path}/data/_SUCCESS")
         else:
             return luigi.contrib.gcs.GCSTarget(
-                f"{self.output_path}/data/sample_id={self.sample_id}"
+                f"{self.output_path}/data/sample_id={self.sample_id}/_SUCCESS"
             )
 
     @property
@@ -81,14 +81,14 @@ class ProcessBase(luigi.Task):
             model.write().overwrite().save(f"{self.output_path}/model")
             transformed = self.transform(model, df, self.feature_columns)
 
-            if self.sample_id is not None:
-                transformed.repartition(self.num_partitions).write.mode(
-                    "overwrite"
-                ).parquet(f"{self.output_path}/data/sample_id={self.sample_id}")
+            if self.sample_id is None:
+                output_path = f"{self.output_path}/data"
+            else:
+                output_path = f"{self.output_path}/data/sample_id={self.sample_id}"
 
-        # now write the success file
-        with self.output().open("w") as f:
-            f.write("")
+            transformed.repartition(self.num_partitions).write.mode(
+                "overwrite"
+            ).parquet(output_path)
 
 
 class ProcessDino(ProcessBase):
