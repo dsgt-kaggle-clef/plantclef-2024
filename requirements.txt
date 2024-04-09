@@ -15,6 +15,7 @@ google-auth
 gcsfs
 fsspec
 lightning
+torchmetrics
 
 # developer tools
 jupyterlab
