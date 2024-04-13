@@ -83,12 +83,6 @@ def parse_args():
         default=128,
         help="Size of the resized image. Default is 128x128",
     )
-    parser.add_argument(
-        "--species-count",
-        type=int,
-        default=None,
-        help="Get a subset of the species based on a species count number",
-    )
 
     return parser.parse_args()
 
@@ -118,20 +112,6 @@ def main():
             F.col("data"), F.lit(args.square_size), F.lit(args.square_size)
         ),
     )
-
-    # Get subset of species if args.get_subset is True
-    if args.species_count:
-        # GroupBy and count species
-        grouped_df = (
-            crop_df.groupBy(["species", "species_id"])
-            .agg(F.count("species_id").alias("n"))
-            .filter(f"n >= {args.species_count}")
-            .orderBy(F.col("n").desc())
-        )
-        # Join with crop_df to get final species subset
-        crop_df = crop_df.join(grouped_df, "species_id", "inner").drop(
-            grouped_df["species"], "n"
-        )
 
     # Drop the original 'data' column and rename 'cropped_image_data' to 'data'
     final_df = (
