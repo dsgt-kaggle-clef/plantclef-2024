@@ -93,3 +93,51 @@ def plot_images_from_embeddings(df, data_col: str, image_col: str, grid_size=(3,
         ax.set_yticks([])
     plt.tight_layout()
     plt.show()
+
+
+def plot_species_histogram(df, species_count: int = 100, bar_width: float = 0.8):
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=200)
+
+    species_df = (
+        df.filter(f"n >= {species_count}").orderBy("n", ascending=False).toPandas()
+    )
+
+    # Get the top and bottom 5 species
+    top5_df = species_df.head(5)
+
+    # Plot all species
+    ax.bar(
+        species_df["species"], species_df["n"], color="lightslategray", width=bar_width
+    )
+
+    # Highlight the top 5 species in different colors
+    if species_count >= 600:
+        colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+        for i, row in top5_df.iterrows():
+            ax.bar(
+                row["species"],
+                row["n"],
+                color=colors[i],
+                label=row["species"],
+                width=bar_width,
+            )
+        ax.legend(title="Top 5 Species")
+
+    ax.set_xlabel("Species")
+    ax.set_ylabel("Count")
+    ax.set_title(
+        f"PlantCLEF 2024 Histogram of Plant Species with Count >= {species_count}",
+        weight="bold",
+        fontsize=16,
+    )
+    ax.set_xticks([])
+    ax.set_xmargin(0)
+    ax.xaxis.label.set_size(14)  # Set the font size for the xlabel
+    ax.yaxis.label.set_size(14)  # Set the font size for the xlabel
+    ax.grid(color="blue", linestyle="--", linewidth=1, alpha=0.2)
+    spines = ["top", "right", "bottom", "left"]
+    for s in spines:
+        ax.spines[s].set_visible(False)
+    plt.tight_layout()
+    plt.show()

@@ -16,6 +16,7 @@ gcsfs
 fsspec
 lightning
 torchmetrics
+umap-learn
 
 # developer tools
 jupyterlab
