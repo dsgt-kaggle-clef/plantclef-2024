@@ -17,6 +17,7 @@ fsspec
 lightning
 torchmetrics
 umap-learn
+petastorm
 
 # developer tools
 jupyterlab
