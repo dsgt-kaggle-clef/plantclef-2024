@@ -15,9 +15,9 @@ google-auth
 gcsfs
 fsspec
 lightning
+tqdm
 torchmetrics
 umap-learn
-petastorm
 
 # developer tools
 jupyterlab
