@@ -18,6 +18,7 @@ lightning
 tqdm
 torchmetrics
 umap-learn
+petastorm
 
 # developer tools
 jupyterlab
