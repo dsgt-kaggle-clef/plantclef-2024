@@ -19,6 +19,7 @@ tqdm
 torchmetrics
 umap-learn
 petastorm
+pyarrow==10.0.1
 
 # developer tools
 jupyterlab
