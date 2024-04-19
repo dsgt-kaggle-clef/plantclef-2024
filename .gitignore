@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 notebooks/embedding/20240327-is-dino.ipynb
+build/lib/plantclef
