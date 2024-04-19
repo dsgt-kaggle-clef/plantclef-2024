@@ -1,3 +1,4 @@
 *.egg-info/
 __pycache__/
 *.pyc
+notebooks/embedding/20240327-is-dino.ipynb
