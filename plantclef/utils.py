@@ -10,7 +10,7 @@ os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 def get_spark(
     cores=os.cpu_count(),
-    memory=f"{int(os.cpu_count()*3)}g",
+    memory="8g",
     local_dir="/mnt/data/tmp",
     app_name="plantclef",
     **kwargs,

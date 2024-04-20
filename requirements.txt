@@ -14,6 +14,13 @@ google-api-python-client
 google-auth
 gcsfs
 fsspec
+lightning
+tqdm
+torchmetrics
+umap-learn
+petastorm
+pyarrow==10.0.1
+pacmap
 
 # developer tools
 jupyterlab
