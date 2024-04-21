@@ -94,7 +94,7 @@ class DCTN(
         input_col: str = "input",
         output_col: str = "output",
         filter_size: int = 8,
-        batch_size=8,
+        batch_size: int = 8,
         input_tensor_shapes=[[257, 768]],
     ):
         super().__init__()
