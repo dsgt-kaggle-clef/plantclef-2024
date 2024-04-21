@@ -158,7 +158,7 @@ class Workflow(luigi.Task):
             )
 
         # Train classifier outside of the subset loop
-        for limit_species in [5]: #, None]:
+        for limit_species in [5, None]:
             final_default_dir = self.default_root_dir
             if limit_species:
                 final_default_dir = (

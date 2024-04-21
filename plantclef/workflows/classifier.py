@@ -26,9 +26,7 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
         return luigi.contrib.gcs.GCSTarget(f"{self.default_root_dir}/_SUCCESS")
 
     def run(self):
-        with spark_resource(
-            **{"spark.sql.shuffle.partitions": self.num_partitions}
-        ) as spark:
+        with spark_resource() as spark:
             # data module
             data_module = PetastormDataModule(
                 spark,

@@ -15,7 +15,7 @@ class LinearClassifier(pl.LightningModule):
         self.num_features = num_features
         self.num_classes = num_classes
         self.save_hyperparameters()  # Saves hyperparams in the checkpoints
-        self.layer = nn.Linear(num_features, num_classes)
+        self.model = nn.Linear(num_features, num_classes)
         self.learning_rate = 0.002
         self.accuracy = MulticlassAccuracy(num_classes=num_classes, average="weighted")
         self.f1_score = MulticlassF1Score(num_classes=num_classes, average="weighted")
@@ -25,7 +25,7 @@ class LinearClassifier(pl.LightningModule):
         self.recall = MulticlassRecall(num_classes=num_classes, average="weighted")
 
     def forward(self, x):
-        return torch.log_softmax(self.layer(x), dim=1)
+        return torch.log_softmax(self.model(x), dim=1)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -71,3 +71,13 @@ class LinearClassifier(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         return self._run_step(batch, batch_idx, "test")
+
+
+class TwoLayerClassifier(LinearClassifier):
+    def __init__(self, num_features, num_classes, hidden_layer_size:int=256):
+        super().__init__(num_features, num_classes)
+        self.model = nn.Sequential(
+            nn.Linear(num_features, hidden_layer_size),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_layer_size, num_classes)
+        )
