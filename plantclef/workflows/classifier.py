@@ -23,7 +23,10 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
 
     def output(self):
         # save both the model pipeline and the dataset
-        return luigi.contrib.gcs.GCSTarget(f"{self.default_root_dir}/_SUCCESS")
+        run_path = "lightning_logs/version_0"
+        return luigi.contrib.gcs.GCSTarget(
+            f"{self.default_root_dir}/{run_path}/_SUCCESS"
+        )
 
     def run(self):
         with spark_resource(
