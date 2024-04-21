@@ -21,6 +21,7 @@ umap-learn
 petastorm
 pyarrow==10.0.1
 pacmap
+wandb
 
 # developer tools
 jupyterlab
