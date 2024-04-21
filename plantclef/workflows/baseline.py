@@ -156,9 +156,10 @@ class Workflow(luigi.Task):
                 output_path=f"{final_output_path}/dino_dct",
                 should_subset=subset,
             )
+
         # Train classifier outside of the subset loop
         yield TrainDCTEmbeddingClassifier(
-            input_path=f"{final_output_path}/dino_dct/data",
+            input_path=f"{self.output_path}/dino_dct/data",
             feature_col="dct_embedding",
             default_root_dir=self.default_root_dir,
             limit_species=5,
