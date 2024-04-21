@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytorch_lightning as pl
@@ -9,37 +10,34 @@ class PetastormDataModule(pl.LightningDataModule):
     def __init__(
         self,
         spark,
-        cache_dir,
-        gcs_path,
-        dct_embedding_path,
+        input_path,
+        feature_col,
         limit_species=None,
         species_image_count=100,
         batch_size=32,
         num_partitions=32,
-        workers_count=16,
     ):
         super().__init__()
+        cache_dir = "file:///mnt/data/tmp"
         spark.conf.set(
             SparkDatasetConverter.PARENT_CACHE_DIR_URL_CONF, Path(cache_dir).as_posix()
         )
         self.spark = spark
-        self.gcs_path = gcs_path
-        self.dct_embedding_path = dct_embedding_path
+        self.input_path = input_path
+        self.feature_col = feature_col
         self.limit_species = limit_species
         self.species_image_count = species_image_count
         self.batch_size = batch_size
         self.num_partitions = num_partitions
-        self.workers_count = workers_count
+        self.workers_count = os.cpu_count()
 
     def _read_data(self):
         """
         Read data from GCS and embedding path
         :return: Spark DataFrame
         """
-        # Define the GCS path to the embedding files
-        dct_gcs_path = f"{self.gcs_path}/{self.dct_embedding_path}"
         # Read the Parquet file into a DataFrame
-        dct_df = self.spark.read.parquet(dct_gcs_path)
+        dct_df = self.spark.read.parquet(self.input_path)
         return dct_df
 
     def _prepare_species_data(self):
@@ -60,9 +58,7 @@ class PetastormDataModule(pl.LightningDataModule):
         ).drop("n")
 
         # Use broadcast join to optimize smaller DataFrame joining
-        filtered_dct_df = dct_df.join(
-            F.broadcast(grouped_df), "species_id", "inner"
-        ).drop("index")
+        filtered_dct_df = dct_df.join(F.broadcast(grouped_df), "species_id", "inner")
 
         # Optionally limit the number of species
         if self.limit_species is not None:
@@ -76,10 +72,9 @@ class PetastormDataModule(pl.LightningDataModule):
                 .withColumnRenamed("new_index", "index")
             )
 
-            filtered_dct_df = filtered_dct_df.join(
+            filtered_dct_df = filtered_dct_df.drop("index").join(
                 F.broadcast(limited_grouped_df), "species_id", "inner"
             )
-
         return filtered_dct_df
 
     def _train_valid_split(self, df):
@@ -93,7 +88,7 @@ class PetastormDataModule(pl.LightningDataModule):
     def _prepare_dataframe(self, df, partitions=32):
         """Prepare the DataFrame for training by ensuring correct types and repartitioning"""
         return (
-            df.withColumnRenamed("dct_embedding", "features")
+            df.withColumnRenamed(self.feature_col, "features")
             .withColumnRenamed("index", "label")
             .select("features", "label")
             .repartition(partitions)

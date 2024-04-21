@@ -2,15 +2,16 @@ from argparse import ArgumentParser
 
 import luigi
 import luigi.contrib.gcs
-from pyspark.ml import Pipeline, PipelineModel
-from pyspark.ml.classification import LogisticRegression
+from pyspark.ml import Pipeline
 from pyspark.ml.feature import SQLTransformer
-from pyspark.ml.functions import array_to_vector, vector_to_array
+from pyspark.ml.functions import vector_to_array
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from plantclef.transforms import DCTN, WrappedDinoV2
 from plantclef.utils import spark_resource
+
+from .classifier import TrainDCTEmbeddingClassifier
 
 
 class ProcessBase(luigi.Task):
@@ -128,6 +129,7 @@ class ProcessDCT(ProcessBase):
 class Workflow(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
+    default_root_dir = luigi.Parameter()
 
     def run(self):
         # Run jobs with subset and full-size data
@@ -154,6 +156,13 @@ class Workflow(luigi.Task):
                 output_path=f"{final_output_path}/dino_dct",
                 should_subset=subset,
             )
+        # Train classifier outside of the subset loop
+        yield TrainDCTEmbeddingClassifier(
+            input_path=f"{final_output_path}/dino_dct/data",
+            feature_col="dct_embedding",
+            default_root_dir=self.default_root_dir,
+            limit_species=5,
+        )
 
 
 def parse_args():
@@ -176,6 +185,12 @@ def parse_args():
         default="data/process/training_cropped_resized_v2",
         help="GCS path for output Parquet files",
     )
+    parser.add_argument(
+        "--model-dir-path",
+        type=str,
+        default="models/torch-petastorm-v1",
+        help="Default root directory for storing the pytorch classifier runs",
+    )
     return parser.parse_args()
 
 
@@ -184,12 +199,14 @@ if __name__ == "__main__":
     # Input and output paths
     input_path = f"{args.gcs_root_path}/{args.train_data_path}"
     output_path = f"{args.gcs_root_path}/{args.output_name_path}"
+    default_root_dir = f"{args.gcs_root_path}/{args.model_dir_path}"
 
     luigi.build(
         [
             Workflow(
                 input_path=input_path,
                 output_path=output_path,
+                default_root_dir=default_root_dir,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
