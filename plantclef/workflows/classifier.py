@@ -22,11 +22,8 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
     num_partitions = luigi.IntParameter(default=32)
 
     def output(self):
-        # save both the model pipeline and the dataset
-        run_path = "lightning_logs/version_0"
-        return luigi.contrib.gcs.GCSTarget(
-            f"{self.default_root_dir}/{run_path}/_SUCCESS"
-        )
+        # save the model run
+        return luigi.contrib.gcs.GCSTarget(f"{self.default_root_dir}/_SUCCESS")
 
     def run(self):
         with spark_resource(
@@ -76,3 +73,7 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
 
             # fit model
             trainer.fit(model, data_module)
+
+        # write the output
+        with self.output().open("w") as f:
+            f.write("")
