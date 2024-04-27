@@ -12,6 +12,7 @@ from plantclef.transforms import DCTN, WrappedDinoV2
 from plantclef.utils import spark_resource
 
 from .classifier import TrainDCTEmbeddingClassifier
+from .inference import InferenceTask
 
 
 class ProcessBase(luigi.Task):
@@ -179,6 +180,12 @@ class Workflow(luigi.Task):
                     )
                 yield TrainDCTEmbeddingClassifier(
                     input_path=f"{self.output_path}/dino_dct/data",
+                    feature_col="dct_embedding",
+                    default_root_dir=final_default_dir,
+                    limit_species=limit_species,
+                )
+                # model inference
+                yield InferenceTask(
                     feature_col="dct_embedding",
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,

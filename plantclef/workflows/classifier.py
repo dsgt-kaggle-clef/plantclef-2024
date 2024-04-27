@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import luigi
@@ -43,15 +44,9 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
 
             # get parameters for the model
             num_features = int(
-                len(
-                    data_module.train_data.select(self.feature_col).first()[
-                        self.feature_col
-                    ]
-                )
+                len(data_module.train_data.select("features").first()["features"])
             )
-            num_classes = int(
-                data_module.train_data.select("species_id").distinct().count()
-            )
+            num_classes = int(data_module.train_data.select("label").distinct().count())
 
             # model module
             model = LinearClassifier(
@@ -69,6 +64,12 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
             # add your batch size to the wandb config
             wandb_logger.experiment.config["batch_size"] = self.batch_size
 
+            model_checkpoint = ModelCheckpoint(
+                dirpath=os.path.join(self.default_root_dir, "checkpoints"),
+                monitor="val_loss",
+                save_last=True,
+            )
+
             # trainer
             trainer = pl.Trainer(
                 max_epochs=10,
@@ -78,7 +79,7 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
                 logger=wandb_logger,
                 callbacks=[
                     EarlyStopping(monitor="val_loss", mode="min"),
-                    ModelCheckpoint(monitor="val_loss", save_last=True),
+                    model_checkpoint,
                 ],
             )
 
