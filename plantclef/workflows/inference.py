@@ -15,13 +15,10 @@ from plantclef.utils import spark_resource
 
 
 class InferenceTask(luigi.Task):
-    # input_path = luigi.Parameter()
     feature_col = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     limit_species = luigi.OptionalIntParameter(default=None)
     species_image_count = luigi.IntParameter(default=100)
-    # batch_size = luigi.IntParameter(default=32)
-    # num_partitions = luigi.IntParameter(default=32)
 
     def output(self):
         # save the model run
@@ -93,7 +90,9 @@ class InferenceTask(luigi.Task):
     def _prepare_dataframe_submission(self, result_df, filtered_df):
         # Join both dataframes to get species_id
         joined_df = result_df.join(
-            filtered_df, result_df.predictions == filtered_df.index, "inner"
+            F.broadcast(filtered_df),
+            result_df.predictions == filtered_df.index,
+            "inner",
         ).select(result_df.image_name, "species_id", "index", "predictions")
         # Create columns for submission
         final_df = (
@@ -108,7 +107,7 @@ class InferenceTask(luigi.Task):
             "species_ids",
             F.concat(F.lit("["), F.concat_ws(", ", "species_ids"), F.lit("]")),
         )
-        return final_df
+        return final_df.cache()
 
     def _write_cvs_to_gcs(self, final_df):
         # Convert Spark DataFrame to Pandas DataFrame
@@ -172,7 +171,7 @@ class InferenceTask(luigi.Task):
             # get predictions on test_df
             result_df = test_df.withColumn(
                 "predictions", predict_udf(test_df[self.feature_col])
-            )
+            ).cache()  # caching the dataframe with 1695 rows
 
             # prepare dataframe for submission
             final_df = self._prepare_dataframe_submission(
