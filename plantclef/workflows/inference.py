@@ -13,13 +13,6 @@ from pyspark.sql.functions import pandas_udf
 from plantclef.baseline.model import LinearClassifier
 from plantclef.utils import spark_resource
 
-"""
-TODO
-1. path_in_bucket in the _load_model_from_gcs method has weird folder name (u1p43hb2)
-2. need to get the path_in_bucket in a dynamic way
-3.
-"""
-
 
 class InferenceTask(luigi.Task):
     # input_path = luigi.Parameter()
@@ -29,12 +22,11 @@ class InferenceTask(luigi.Task):
     species_image_count = luigi.IntParameter(default=100)
     # batch_size = luigi.IntParameter(default=32)
     # num_partitions = luigi.IntParameter(default=32)
-    experiment_run_path = "experiments/dsgt_run.csv"
 
     def output(self):
         # save the model run
         return luigi.contrib.gcs.GCSTarget(
-            f"{self.default_root_dir}/{self.experiment_run_path}/_SUCCESS"
+            f"{self.default_root_dir}/experiments/_SUCCESS"
         )
 
     def _remap_index_to_species_id(self, df):
@@ -123,7 +115,7 @@ class InferenceTask(luigi.Task):
         final_pandas_df = final_df.toPandas()
 
         # Export to CSV with the specified format
-        output_dir = f"{self.default_root_dir}/{self.experiment_run_path}"
+        output_dir = f"{self.default_root_dir}/experiments/dsgt_run.csv"
         final_pandas_df.to_csv(output_dir, sep=";", index=False, quoting=csv.QUOTE_NONE)
 
     def run(self):
