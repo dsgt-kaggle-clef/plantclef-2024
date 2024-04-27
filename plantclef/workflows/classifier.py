@@ -1,12 +1,14 @@
-import wandb
+from pathlib import Path
+
 import luigi
 import luigi.contrib.gcs
 import pytorch_lightning as pl
 import torch
-from pathlib import Path
+import wandb
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+
 from plantclef.baseline.data import PetastormDataModule
 from plantclef.baseline.model import LinearClassifier
 from plantclef.utils import spark_resource
@@ -59,7 +61,7 @@ class TrainDCTEmbeddingClassifier(luigi.Task):
 
             # initialise the wandb logger and name your wandb project
             wandb_logger = WandbLogger(
-                project='plantclef-2024', 
+                project="plantclef-2024",
                 name=Path(self.default_root_dir).name,
                 save_dir=self.default_root_dir,
             )
