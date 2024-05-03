@@ -123,6 +123,7 @@ class Workflow(luigi.Task):
     output_path = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     process_test_data = luigi.OptionalBoolParameter(default=False)
+    use_cls_token = luigi.OptionalBoolParameter(default=False)
 
     def run(self):
         # training workflow parameters
@@ -173,22 +174,29 @@ class Workflow(luigi.Task):
         # Train classifier outside of the subset loop
         if train_model:
             for limit_species in [5, None]:
+                input_path = (f"{self.output_path}/dino_dct/data",)
+                feature_col = "dct_embedding"
                 final_default_dir = self.default_root_dir
                 if limit_species:
                     final_default_dir = (
                         f"{self.default_root_dir}-limit-species-{limit_species}"
                     )
+                if self.use_cls_token:
+                    input_path = f"{self.output_path}/dino/data"
+                    feature_col = "dino_embedding"
+                    final_default_dir = f"{final_default_dir}-cls-token"
                 yield TrainDCTEmbeddingClassifier(
-                    input_path=f"{self.output_path}/dino_dct/data",
-                    feature_col="dct_embedding",
+                    input_path=input_path,
+                    feature_col=feature_col,
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,
                 )
                 # model inference
                 yield InferenceTask(
-                    feature_col="dct_embedding",
+                    feature_col=feature_col,
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,
+                    use_cls_token=self.use_cls_token,
                 )
 
 
@@ -224,6 +232,12 @@ def parse_args():
         default=False,
         help="If True, set pipeline to process the test data and extract embeddings",
     )
+    parser.add_argument(
+        "--use-cls-token",
+        type=bool,
+        default=False,
+        help="If True, use the CLS token from the DINOv2 ViT model for classification",
+    )
     return parser.parse_args()
 
 
@@ -234,6 +248,7 @@ if __name__ == "__main__":
     output_path = f"{args.gcs_root_path}/{args.output_name_path}"
     default_root_dir = f"{args.gcs_root_path}/{args.model_dir_path}"
     process_test_data = args.process_test_data
+    use_cls_token = args.use_cls_token
 
     # update workflow parameters for processing test data
     if process_test_data:
@@ -247,6 +262,7 @@ if __name__ == "__main__":
                 output_path=output_path,
                 default_root_dir=default_root_dir,
                 process_test_data=process_test_data,
+                use_cls_token=use_cls_token,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
