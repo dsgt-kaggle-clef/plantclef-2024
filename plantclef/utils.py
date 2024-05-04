@@ -10,7 +10,8 @@ os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 def get_spark(
     cores=os.cpu_count(),
-    memory="8g",
+    memory=os.environ.get("PYSPARK_DRIVER_MEMORY", f"{int(os.cpu_count() * 1.5)}g"),
+    executor_memory=os.environ.get("PYSPARK_EXECUTOR_MEMORY", "1g"),
     local_dir="/mnt/data/tmp",
     app_name="plantclef",
     **kwargs,
@@ -18,10 +19,13 @@ def get_spark(
     """Get a spark session for a single driver."""
     builder = (
         SparkSession.builder.config("spark.driver.memory", memory)
+        .config("spark.executor.memory", executor_memory)
         .config("spark.driver.cores", cores)
         .config("spark.sql.execution.arrow.pyspark.enabled", "true")
         .config("spark.driver.maxResultSize", "4g")
         .config("spark.local.dir", local_dir)
+        .config("spark.sql.parquet.columnarReaderBatchSize", "2048")
+        .config("spark.sql.orc.columnarReaderBatchSize", "2048")
     )
     for k, v in kwargs.items():
         builder = builder.config(k, v)
