@@ -8,7 +8,7 @@ from pyspark.ml.functions import vector_to_array
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-from plantclef.transforms import DCTN, WrappedDinoV2
+from plantclef.transforms import DCTN, ExtractCLSToken, WrappedDinoV2
 from plantclef.utils import spark_resource
 
 from .classifier import TrainDCTEmbeddingClassifier
@@ -118,6 +118,22 @@ class ProcessDCT(ProcessBase):
         return Pipeline(stages=[dct, SQLTransformer(statement=self.sql_statement)])
 
 
+class ProcessCLS(ProcessBase):
+    sql_statement = luigi.Parameter()
+
+    @property
+    def feature_columns(self) -> list:
+        return ["cls_embedding"]
+
+    def pipeline(self):
+        cls_extractor = ExtractCLSToken(
+            input_col="dino_embedding", output_col="cls_embedding"
+        )
+        return Pipeline(
+            stages=[cls_extractor, SQLTransformer(statement=self.sql_statement)]
+        )
+
+
 class Workflow(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
@@ -134,6 +150,7 @@ class Workflow(luigi.Task):
             "SELECT image_name, species_id, dino_embedding FROM __THIS__"
         )
         dct_sql_statement = "SELECT image_name, species_id, dct_embedding FROM __THIS__"
+        cls_sql_statement = "SELECT image_name, species_id, cls_embedding FROM __THIS__"
         # test workflow parameters
         if self.process_test_data:
             subset_list = [False]  # Skip subset for test data
@@ -141,7 +158,7 @@ class Workflow(luigi.Task):
             sample_col = "image_name"
             dino_sql_statement = "SELECT image_name, dino_embedding FROM __THIS__"
             dct_sql_statement = "SELECT image_name, dct_embedding FROM __THIS__"
-
+            cls_sql_statement = "SELECT image_name, cls_embedding FROM __THIS__"
         # Run jobs with subset and full-size data
         for subset in subset_list:
             final_output_path = self.output_path
@@ -170,21 +187,30 @@ class Workflow(luigi.Task):
                 sample_col=sample_col,
                 sql_statement=dct_sql_statement,
             )
+            yield ProcessCLS(
+                input_path=f"{final_output_path}/dino/data",
+                output_path=f"{final_output_path}/dino_cls_token",
+                should_subset=subset,
+                sample_col=sample_col,
+                sql_statement=cls_sql_statement,
+            )
 
         # Train classifier outside of the subset loop
+        # train_model = False
         if train_model:
             for limit_species in [5, None]:
-                input_path = (f"{self.output_path}/dino_dct/data",)
+                input_path = f"{self.output_path}/dino_dct/data"
                 feature_col = "dct_embedding"
                 final_default_dir = self.default_root_dir
+                # Extract CLS token dataset for training
+                if self.use_cls_token:
+                    input_path = f"{self.output_path}/dino_cls_token/data"
+                    feature_col = "cls_embedding"
+                    final_default_dir = f"{final_default_dir}-cls-token"
                 if limit_species:
                     final_default_dir = (
-                        f"{self.default_root_dir}-limit-species-{limit_species}"
+                        f"{final_default_dir}-limit-species-{limit_species}"
                     )
-                if self.use_cls_token:
-                    input_path = f"{self.output_path}/dino/data"
-                    feature_col = "dino_embedding"
-                    final_default_dir = f"{final_default_dir}-cls-token"
                 yield TrainDCTEmbeddingClassifier(
                     input_path=input_path,
                     feature_col=feature_col,
@@ -196,7 +222,6 @@ class Workflow(luigi.Task):
                     feature_col=feature_col,
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,
-                    use_cls_token=self.use_cls_token,
                 )
 
 

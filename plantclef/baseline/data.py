@@ -16,7 +16,7 @@ class PetastormDataModule(pl.LightningDataModule):
         species_image_count=100,
         batch_size=32,
         num_partitions=32,
-        workers_count = os.cpu_count()
+        workers_count=os.cpu_count(),
     ):
         super().__init__()
         cache_dir = "file:///mnt/data/tmp"
@@ -31,7 +31,6 @@ class PetastormDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_partitions = num_partitions
         self.workers_count = workers_count
-
 
     def _prepare_species_data(self):
         """
@@ -70,14 +69,15 @@ class PetastormDataModule(pl.LightningDataModule):
             )
         return filtered_df
 
-
-
     def _prepare_dataframe(self, df, partitions=32):
         """Prepare the DataFrame for training by ensuring correct types and repartitioning"""
         return (
             df.withColumnRenamed(self.feature_col, "features")
             .withColumnRenamed("index", "label")
-            .select(F.col("features").cast("array<float>").alias("features"), F.col("label").cast("long").alias("label"))
+            .select(
+                F.col("features").cast("array<float>").alias("features"),
+                F.col("label").cast("long").alias("label"),
+            )
             .repartition(partitions)
         )
 
