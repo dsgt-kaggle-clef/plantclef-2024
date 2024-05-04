@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from contextlib import contextmanager
 
 from pyspark.sql import SparkSession
@@ -10,7 +11,8 @@ os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 def get_spark(
     cores=os.cpu_count(),
-    memory="8g",
+    memory=os.environ.get("PYSPARK_DRIVER_MEMORY", "8g"),
+    executor_memory=os.environ.get("PYSPARK_EXECUTOR_MEMORY", "1g"),
     local_dir="/mnt/data/tmp",
     app_name="plantclef",
     **kwargs,
@@ -18,10 +20,11 @@ def get_spark(
     """Get a spark session for a single driver."""
     builder = (
         SparkSession.builder.config("spark.driver.memory", memory)
+        .config("spark.executor.memory", executor_memory)
         .config("spark.driver.cores", cores)
         .config("spark.sql.execution.arrow.pyspark.enabled", "true")
         .config("spark.driver.maxResultSize", "4g")
-        .config("spark.local.dir", local_dir)
+        .config("spark.local.dir", f"{local_dir}/{int(time.time())}")
     )
     for k, v in kwargs.items():
         builder = builder.config(k, v)

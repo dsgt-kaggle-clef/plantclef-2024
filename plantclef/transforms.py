@@ -1,5 +1,6 @@
 import io
 
+import luigi
 import numpy as np
 import torch
 from PIL import Image
@@ -8,8 +9,11 @@ from pyspark.ml.functions import predict_batch_udf
 from pyspark.ml.param.shared import HasInputCol, HasOutputCol
 from pyspark.ml.util import DefaultParamsReadable, DefaultParamsWritable
 from pyspark.sql import DataFrame
+from pyspark.sql.functions import udf
 from pyspark.sql.types import ArrayType, FloatType
 from scipy.fftpack import dctn
+
+from plantclef.utils import spark_resource
 
 
 class WrappedDinoV2(
@@ -125,3 +129,29 @@ class DCTN(
                 input_tensor_shapes=self.input_tensor_shapes,
             )(self.getInputCol()),
         )
+
+
+class ExtractCLSToken(
+    Transformer,
+    HasInputCol,
+    HasOutputCol,
+    DefaultParamsReadable,
+    DefaultParamsWritable,
+):
+    """
+    Extract the CLS token (first element of the dino_embedding) from the embeddings and
+    store it in a new column.
+    """
+
+    def __init__(self, input_col: str = "input", output_col: str = "output"):
+        super().__init__()
+        self._setDefault(inputCol=input_col, outputCol=output_col)
+
+    def _transform(self, df):
+        # Define a UDF to extract the CLS token from the embeddings
+        def extract_cls(embedding):
+            return embedding[0].tolist()
+
+        extract_cls_udf = udf(extract_cls, ArrayType(FloatType()))
+
+        return df.withColumn(self.getOutputCol(), extract_cls_udf(self.getInputCol()))

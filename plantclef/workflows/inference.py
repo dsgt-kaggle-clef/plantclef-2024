@@ -19,7 +19,6 @@ class InferenceTask(luigi.Task):
     default_root_dir = luigi.Parameter()
     limit_species = luigi.OptionalIntParameter(default=None)
     species_image_count = luigi.IntParameter(default=100)
-    use_cls_token = luigi.OptionalBoolParameter(default=False)
 
     def output(self):
         # save the model run
@@ -165,29 +164,10 @@ class InferenceTask(luigi.Task):
                     ).numpy()  # Get all predicted classes at once
                 return pd.Series(predicted_classes)
 
-            # UDF using the CLS token
-            @pandas_udf("long")
-            def predict_with_cls_udf(dct_embedding_series: pd.Series) -> pd.Series:
-                local_model = broadcast_model.value
-                local_model.eval()
-                embeddings_array = np.array(list(dct_embedding_series))
-                embeddings_tensor = torch.tensor(embeddings_array, dtype=torch.float32)
-                with torch.no_grad():
-                    outputs = local_model(embeddings_tensor)
-                    cls_token = outputs[:, 0, :]
-                    predicted_classes = cls_token.argmax(dim=1).numpy()
-                return pd.Series(predicted_classes)
-
             # get predictions on test_df
-            if self.use_cls_token:
-                result_df = test_df.withColumn(
-                    "predictions", predict_with_cls_udf(test_df[self.feature_col])
-                ).cache()
-            else:
-                # get predictions on test_df
-                result_df = test_df.withColumn(
-                    "predictions", predict_udf(test_df[self.feature_col])
-                ).cache()  # caching the dataframe with 1695 rows
+            result_df = test_df.withColumn(
+                "predictions", predict_udf(test_df[self.feature_col])
+            ).cache()  # caching the dataframe with 1695 rows
 
             # prepare dataframe for submission
             final_df = self._prepare_dataframe_submission(
