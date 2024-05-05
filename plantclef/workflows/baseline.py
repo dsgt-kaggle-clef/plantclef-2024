@@ -151,6 +151,7 @@ class Workflow(luigi.Task):
         )
         dct_sql_statement = "SELECT image_name, species_id, dct_embedding FROM __THIS__"
         cls_sql_statement = "SELECT image_name, species_id, cls_embedding FROM __THIS__"
+
         # test workflow parameters
         if self.process_test_data:
             subset_list = [False]  # Skip subset for test data
@@ -159,6 +160,7 @@ class Workflow(luigi.Task):
             dino_sql_statement = "SELECT image_name, dino_embedding FROM __THIS__"
             dct_sql_statement = "SELECT image_name, dct_embedding FROM __THIS__"
             cls_sql_statement = "SELECT image_name, cls_embedding FROM __THIS__"
+
         # Run jobs with subset and full-size data
         for subset in subset_list:
             final_output_path = self.output_path
@@ -167,7 +169,6 @@ class Workflow(luigi.Task):
                 final_output_path = self.output_path.replace(
                     self.output_path.split("/")[-1], subset_path
                 )
-
             yield [
                 ProcessDino(
                     input_path=self.input_path,
@@ -196,21 +197,26 @@ class Workflow(luigi.Task):
             )
 
         # Train classifier outside of the subset loop
-        # train_model = False
         if train_model:
             for limit_species in [5, None]:
-                input_path = f"{self.output_path}/dino_dct/data"
+                # use the Dino-DCT dataset for training the classifier
+                data_path = "dino_dct/data"
+                input_path = f"{self.output_path}/{data_path}"
                 feature_col = "dct_embedding"
                 final_default_dir = self.default_root_dir
-                # Extract CLS token dataset for training
+                # use the CLS token dataset for training the classifier
                 if self.use_cls_token:
-                    input_path = f"{self.output_path}/dino_cls_token/data"
+                    data_path = "dino_cls_token/data"
+                    input_path = f"{self.output_path}/{data_path}"
                     feature_col = "cls_embedding"
                     final_default_dir = f"{final_default_dir}-cls-token"
                 if limit_species:
                     final_default_dir = (
                         f"{final_default_dir}-limit-species-{limit_species}"
                     )
+                print(f"\ninput_path: {input_path}")
+                print(f"feature_col: {feature_col}")
+                print(f"default_root: {final_default_dir}\n")
                 yield TrainDCTEmbeddingClassifier(
                     input_path=input_path,
                     feature_col=feature_col,
@@ -219,6 +225,8 @@ class Workflow(luigi.Task):
                 )
                 # model inference
                 yield InferenceTask(
+                    input_path=input_path,
+                    test_path=f"test_v1/{data_path}",
                     feature_col=feature_col,
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,

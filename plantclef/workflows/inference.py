@@ -15,6 +15,8 @@ from plantclef.utils import spark_resource
 
 
 class InferenceTask(luigi.Task):
+    input_path = luigi.Parameter()
+    test_path = luigi.Parameter()
     feature_col = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     limit_species = luigi.OptionalIntParameter(default=None)
@@ -121,17 +123,18 @@ class InferenceTask(luigi.Task):
         with spark_resource() as spark:
             # get dataframes
             gcs_path = "gs://dsgt-clef-plantclef-2024"
-            test_path = "data/process/test_v1/dino_dct/data"
-            dct_emb_train = "data/process/training_cropped_resized_v2/dino_dct/data"
+            test_path = f"data/process/{self.test_path}"
+            emb_path = self.input_path.split(gcs_path)[-1]
+
             # paths to dataframe
             test_path = f"{gcs_path}/{test_path}"
-            dct_gcs_path = f"{gcs_path}/{dct_emb_train}"
+            emb_gcs_path = f"{gcs_path}/{emb_path}"
             # read data
             test_df = spark.read.parquet(test_path)
-            dct_df = spark.read.parquet(dct_gcs_path)
+            emb_df = spark.read.parquet(emb_gcs_path)
 
             # remap the indexes to species and get dataframe
-            filtered_df = self._remap_index_to_species_id(dct_df)
+            filtered_df = self._remap_index_to_species_id(emb_df)
 
             # get parameters for the model
             num_features = int(
