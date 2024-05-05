@@ -1,6 +1,7 @@
 import io
 
 import numpy as np
+import timm
 import torch
 from PIL import Image
 from pyspark.ml import Transformer
@@ -11,6 +12,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import ArrayType, FloatType
 from scipy.fftpack import dctn
+from transformers import AutoImageProcessor, AutoModel
 
 
 class WrappedDinoV2(
@@ -35,35 +37,30 @@ class WrappedDinoV2(
         self._setDefault(inputCol=input_col, outputCol=output_col)
         self.model_name = model_name
         self.batch_size = batch_size
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.processor = AutoImageProcessor.from_pretrained(self.model_name)
+        self.model = AutoModel.from_pretrained(self.model_name)
+        # Move model to GPU if available
+        self.model.to(self.device)
 
     def _make_predict_fn(self):
         """Return PredictBatchFunction using a closure over the model"""
-        from transformers import AutoImageProcessor, AutoModel
-
-        processor = AutoImageProcessor.from_pretrained(self.model_name)
-        model = AutoModel.from_pretrained(self.model_name)
-
-        # Move model to GPU if available
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
 
         def predict(inputs: np.ndarray) -> np.ndarray:
             images = [Image.open(io.BytesIO(input)) for input in inputs]
-            model_inputs = processor(images=images, return_tensors="pt")
-
+            model_inputs = self.processor(images=images, return_tensors="pt")
             # Move inputs to device
             model_inputs = {
-                key: value.to(device) for key, value in model_inputs.items()
+                key: value.to(self.device) for key, value in model_inputs.items()
             }
 
             with torch.no_grad():
-                outputs = model(**model_inputs)
+                outputs = self.model(**model_inputs)
                 last_hidden_states = outputs.last_hidden_state
 
             numpy_array = last_hidden_states.cpu().numpy()
             new_shape = numpy_array.shape[:-2] + (-1,)
             numpy_array = numpy_array.reshape(new_shape)
-
             return numpy_array
 
         return predict
@@ -154,4 +151,76 @@ class ExtractCLSToken(
         # Extract the CLS token using slice function
         return df.withColumn(
             self.output_col, F.slice(F.col(self.input_col), 1, self.token_dimension)
+        )
+
+
+class PretrainedDinoV2(
+    Transformer,
+    HasInputCol,
+    HasOutputCol,
+    DefaultParamsReadable,
+    DefaultParamsWritable,
+):
+    """
+    Wrapper for Pretrained DinoV2 to add it to the pipeline
+    """
+
+    def __init__(
+        self,
+        pretrained_path: str,
+        input_col: str = "input",
+        output_col: str = "output",
+        model_name="vit_base_patch14_reg4_dinov2.lvd142m",
+        batch_size=8,
+    ):
+        super().__init__()
+        self._setDefault(inputCol=input_col, outputCol=output_col)
+        self.model_name = model_name
+        self.batch_size = batch_size
+        self.pretrained_path = pretrained_path
+        self.num_classes = 7806  # total number of plant species
+        # Model
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.processor = AutoImageProcessor.from_pretrained(self.model_name)
+        self.model = timm.create_model(
+            self.model_name,
+            pretrained=False,
+            num_classes=self.num_classes,
+            checkpoint_path=self.pretrained_path,
+        )
+        self.model.to(self.device)
+
+    def _make_predict_fn(self):
+        """Return PredictBatchFunction using a closure over the model"""
+
+        def predict(inputs: np.ndarray) -> np.ndarray:
+            images = [Image.open(io.BytesIO(input)) for input in inputs]
+            model_inputs = self.processor(images=images, return_tensors="pt").to(
+                self.device
+            )
+            # # Move inputs to device
+            # model_inputs = {
+            #     key: value.to(self.device) for key, value in model_inputs.items()
+            # }
+
+            with torch.no_grad():
+                outputs = self.model(**model_inputs)
+                last_hidden_states = outputs.last_hidden_state
+
+            numpy_array = last_hidden_states.cpu().numpy()
+            new_shape = numpy_array.shape[:-2] + (-1,)
+            numpy_array = numpy_array.reshape(new_shape)
+
+            return numpy_array
+
+        return predict
+
+    def _transform(self, df: DataFrame):
+        return df.withColumn(
+            self.getOutputCol(),
+            predict_batch_udf(
+                make_predict_fn=self._make_predict_fn,
+                return_type=ArrayType(FloatType()),
+                batch_size=self.batch_size,
+            )(self.getInputCol()),
         )
