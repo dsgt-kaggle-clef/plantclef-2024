@@ -8,7 +8,8 @@ from pyspark.ml.functions import vector_to_array
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-from plantclef.transforms import DCTN, ExtractCLSToken, WrappedDinoV2
+from plantclef.model_setup import setup_pretrained_model
+from plantclef.transforms import DCTN, ExtractCLSToken, PretrainedDinoV2, WrappedDinoV2
 from plantclef.utils import spark_resource
 
 from .classifier import TrainDCTEmbeddingClassifier
@@ -134,12 +135,32 @@ class ProcessCLS(ProcessBase):
         )
 
 
+class ProcessPretrainedDino(ProcessBase):
+    sql_statement = luigi.Parameter()
+    pretrained_path = luigi.Parameter()
+
+    @property
+    def feature_columns(self) -> list:
+        return ["dino_embedding"]
+
+    def pipeline(self):
+        pretrained_dino = PretrainedDinoV2(
+            input_col="data",
+            output_col="dino_embedding",
+            pretrained_path=self.pretrained_path,
+        )
+        return Pipeline(
+            stages=[pretrained_dino, SQLTransformer(statement=self.sql_statement)]
+        )
+
+
 class Workflow(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     process_test_data = luigi.OptionalBoolParameter(default=False)
     use_cls_token = luigi.OptionalBoolParameter(default=False)
+    use_pretrained_dino = luigi.OptionalBoolParameter(default=False)
 
     def run(self):
         # training workflow parameters
@@ -169,18 +190,34 @@ class Workflow(luigi.Task):
                 final_output_path = self.output_path.replace(
                     self.output_path.split("/")[-1], subset_path
                 )
-            yield [
-                ProcessDino(
-                    input_path=self.input_path,
-                    output_path=f"{final_output_path}/dino",
-                    should_subset=subset,
-                    sample_id=i,
-                    num_sample_id=10,
-                    sample_col=sample_col,
-                    sql_statement=dino_sql_statement,
-                )
-                for i in range(10)
-            ]
+            if self.use_pretrained_dino:
+                pretrained_path = setup_pretrained_model()
+                yield [
+                    ProcessPretrainedDino(
+                        pretrained_path=pretrained_path,
+                        input_path=self.input_path,
+                        output_path=f"{final_output_path}/dino",
+                        should_subset=subset,
+                        sample_id=i,
+                        num_sample_id=10,
+                        sample_col=sample_col,
+                        sql_statement=dino_sql_statement,
+                    )
+                    for i in range(10)
+                ]
+            else:
+                yield [
+                    ProcessDino(
+                        input_path=self.input_path,
+                        output_path=f"{final_output_path}/dino",
+                        should_subset=subset,
+                        sample_id=i,
+                        num_sample_id=10,
+                        sample_col=sample_col,
+                        sql_statement=dino_sql_statement,
+                    )
+                    for i in range(10)
+                ]
             yield ProcessDCT(
                 input_path=f"{final_output_path}/dino/data",
                 output_path=f"{final_output_path}/dino_dct",
@@ -271,6 +308,12 @@ def parse_args():
         default=False,
         help="If True, use the CLS token from the DINOv2 ViT model for classification",
     )
+    parser.add_argument(
+        "--use-pretrained-dino",
+        type=bool,
+        default=False,
+        help="If True, use the pretrained DINOv2 ViT model to extract embeddings from images",
+    )
     return parser.parse_args()
 
 
@@ -282,6 +325,7 @@ if __name__ == "__main__":
     default_root_dir = f"{args.gcs_root_path}/{args.model_dir_path}"
     process_test_data = args.process_test_data
     use_cls_token = args.use_cls_token
+    use_pretrained_dino = args.use_pretrained_dino
 
     # update workflow parameters for processing test data
     if process_test_data:
@@ -296,6 +340,7 @@ if __name__ == "__main__":
                 default_root_dir=default_root_dir,
                 process_test_data=process_test_data,
                 use_cls_token=use_cls_token,
+                use_pretrained_dino=use_pretrained_dino,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
