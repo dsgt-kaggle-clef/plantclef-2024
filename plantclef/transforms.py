@@ -1,6 +1,5 @@
 import io
 
-import luigi
 import numpy as np
 import torch
 from PIL import Image
@@ -9,11 +8,9 @@ from pyspark.ml.functions import predict_batch_udf
 from pyspark.ml.param.shared import HasInputCol, HasOutputCol
 from pyspark.ml.util import DefaultParamsReadable, DefaultParamsWritable
 from pyspark.sql import DataFrame
-from pyspark.sql.functions import udf
+from pyspark.sql import functions as F
 from pyspark.sql.types import ArrayType, FloatType
 from scipy.fftpack import dctn
-
-from plantclef.utils import spark_resource
 
 
 class WrappedDinoV2(
@@ -139,19 +136,22 @@ class ExtractCLSToken(
     DefaultParamsWritable,
 ):
     """
-    Extract the CLS token (first element of the dino_embedding) from the embeddings and
-    store it in a new column.
+    Extract the CLS token (first 768 elements) from the Dino embedding column.
     """
 
-    def __init__(self, input_col: str = "input", output_col: str = "output"):
-        super().__init__()
-        self._setDefault(inputCol=input_col, outputCol=output_col)
+    def __init__(
+        self,
+        input_col="dino_embedding",
+        output_col="cls_embedding",
+        token_dimension=768,
+    ):
+        super(ExtractCLSToken, self).__init__()
+        self.input_col = input_col
+        self.output_col = output_col
+        self.token_dimension = token_dimension
 
     def _transform(self, df):
-        # Define a UDF to extract the CLS token from the embeddings
-        def extract_cls(embedding):
-            return embedding[0].tolist()
-
-        extract_cls_udf = udf(extract_cls, ArrayType(FloatType()))
-
-        return df.withColumn(self.getOutputCol(), extract_cls_udf(self.getInputCol()))
+        # Extract the CLS token using slice function
+        return df.withColumn(
+            self.output_col, F.slice(F.col(self.input_col), 1, self.token_dimension)
+        )
