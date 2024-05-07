@@ -208,6 +208,7 @@ class PretrainedDinoV2(
         self.cid_to_spid = self._load_class_mapping()
 
         def predict(inputs: np.ndarray) -> np.ndarray:
+            print(f"inputs type: {type(inputs)}\n")
             images = [Image.open(io.BytesIO(input)) for input in inputs]
             processed_images = [self.transforms(image).unsqueeze(0) for image in images]
             batch_input = torch.cat(processed_images).to(self.device)
@@ -221,30 +222,25 @@ class PretrainedDinoV2(
 
             top_probs = top_probs.cpu().numpy()
             top_indices = top_indices.cpu().numpy()
-            print(f"\ntop_probs: {top_probs}")
-            print(f"top_indices: {top_indices}\n")
 
             # Convert top indices and probabilities to a dictionary {species_id: probability}
-            result = []
+            batch_results = []
             for probs, indices in zip(top_probs, top_indices):
-                result.append(
+                batch_results.append(
                     {
                         self.cid_to_spid[index]: float(prob)
                         for index, prob in zip(indices, probs)
                     }
                 )
-            print(f"result: {result}")
-            return result
+            return batch_results
 
         return predict
 
     def _transform(self, df):
         predict_udf = F.udf(
-            self._make_predict_fn(),
-            ArrayType(MapType(StringType(), FloatType())),
+            self._make_predict_fn(), ArrayType(MapType(StringType(), FloatType()))
         )
-
-        return df.withColumn(self.getOutputCol(), predict_udf(self.getInputCol()))
+        return df.withColumn(self.getOutputCol(), predict_udf(df[self.getInputCol()]))
 
     # def _transform(self, df: DataFrame):
     #     return df.withColumn(
