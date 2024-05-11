@@ -162,10 +162,6 @@ class PretrainedDinoV2(
     DefaultParamsReadable,
     DefaultParamsWritable,
 ):
-    """
-    Wrapper for Pretrained DinoV2 to add it to the pipeline
-    """
-
     def __init__(
         self,
         pretrained_path: str,
@@ -173,6 +169,8 @@ class PretrainedDinoV2(
         output_col: str = "output",
         model_name: str = "vit_base_patch14_reg4_dinov2.lvd142m",
         batch_size: int = 8,
+        grid_size: int = 3,
+        use_grid: bool = False,
     ):
         super().__init__()
         self._setDefault(inputCol=input_col, outputCol=output_col)
@@ -198,44 +196,60 @@ class PretrainedDinoV2(
             **self.data_config, is_training=False
         )
         self.cid_to_spid = self._load_class_mapping()
+        self.grid_size = grid_size
+        self.use_grid = use_grid
 
     def _load_class_mapping(self):
         with open(self.class_mapping_file) as f:
             class_index_to_class_name = {i: line.strip() for i, line in enumerate(f)}
         return class_index_to_class_name
 
+    def _split_into_grid(self, image):
+        w, h = image.size
+        grid_w, grid_h = w // self.grid_size, h // self.grid_size
+        images = []
+        for i in range(self.grid_size):
+            for j in range(self.grid_size):
+                left = i * grid_w
+                upper = j * grid_h
+                right = left + grid_w
+                lower = upper + grid_h
+                crop_image = image.crop((left, upper, right, lower))
+                images.append(crop_image)
+        return images
+
     def _make_predict_fn(self):
-        """Return PredictBatchFunction using a closure over the model"""
-
-        def predict(input_data: list) -> list:
-            # Load all inputs into a batch of images
+        def predict(input_data):
             img = Image.open(io.BytesIO(input_data))
-            # Transform and stack images to a single tensor
-            processed_image = self.transforms(img).unsqueeze(0).to(self.device)
-
-            with torch.no_grad():
-                outputs = self.model(processed_image)
-                probabilities = torch.softmax(outputs, dim=1) * 100
-                top_probs, top_indices = torch.topk(probabilities, k=20)
-
-            top_probs = top_probs.cpu().numpy()[0]
-            top_indices = top_indices.cpu().numpy()[0]
-
-            # Convert top indices and probabilities to a dictionary
-            result = [
-                {self.cid_to_spid.get(index, "Unknown"): float(prob)}
-                for index, prob in zip(top_indices, top_probs)
-            ]
-            return result
+            if self.use_grid:
+                images = self._split_into_grid(img)
+                k = 10
+            else:
+                images = [img]
+                k = 20
+            results = []
+            for img in images:
+                processed_image = self.transforms(img).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    outputs = self.model(processed_image)
+                    probabilities = torch.softmax(outputs, dim=1) * 100
+                    top_probs, top_indices = torch.topk(probabilities, k=k)
+                top_probs = top_probs.cpu().numpy()[0]
+                top_indices = top_indices.cpu().numpy()[0]
+                result = [
+                    {self.cid_to_spid.get(index, "Unknown"): float(prob)}
+                    for index, prob in zip(top_indices, top_probs)
+                ]
+                results.append(result)
+            return results
 
         return predict
 
     def _transform(self, df: DataFrame):
-        # Create a UDF from the predict function
         predict_fn = self._make_predict_fn()
-        predict_udf = F.udf(predict_fn, ArrayType(MapType(StringType(), FloatType())))
-
+        predict_udf = F.udf(
+            predict_fn, ArrayType(ArrayType(MapType(StringType(), FloatType())))
+        )
         return df.withColumn(
-            self.getOutputCol(),
-            predict_udf(self.getInputCol()),
+            self.getOutputCol(), predict_udf(F.col(self.getInputCol()))
         )
