@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 from google.cloud import storage
 from pyspark import SparkContext
+from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.functions import pandas_udf
 
@@ -180,6 +181,62 @@ class InferenceTask(luigi.Task):
 
             # write CSV file to GCS
             self._write_cvs_to_gcs(final_df=final_df)
+
+            # write the output
+            with self.output().open("w") as f:
+                f.write("")
+
+
+class PretrainedInferenceTask(luigi.Task):
+    default_root_dir = luigi.Parameter()
+    k = luigi.OptionalIntParameter(default=5)
+
+    def output(self):
+        # save the model run
+        return luigi.contrib.gcs.GCSTarget(
+            f"{self.default_root_dir}/experiments/_SUCCESS"
+        )
+
+    def _format_species_ids(self, species_ids: list) -> str:
+        """Formats the species IDs in single square brackets, separated by commas."""
+        formatted_ids = ", ".join(str(id) for id in species_ids)
+        return f"[{formatted_ids}]"
+
+    def _extract_top_k_species(self, logits: list) -> list:
+        """Extracts the top k species from the logits list."""
+        sorted_logits = sorted(logits, key=lambda x: -next(iter(x.values())))
+        return [list(item.keys())[0] for item in sorted_logits[: self.k]]
+
+    def _remove_extension(self, filename: str) -> str:
+        """Removes the file extension from the filename."""
+        return filename.rsplit(".", 1)[0]
+
+    def _prepare_and_write_submission(self, spark_df: DataFrame) -> DataFrame:
+        """Converts Spark DataFrame to Pandas, formats it, and writes to GCS."""
+        records = []
+        for row in spark_df.collect():
+            image_name = self._remove_extension(row["image_name"])
+            logits = row["dino_logits"]
+            top_k_species = self._extract_top_k_species(logits)
+            formatted_species = self._format_species_ids(top_k_species)
+            records.append({"plot_id": image_name, "species_ids": formatted_species})
+
+        pandas_df = pd.DataFrame(records)
+        return pandas_df
+
+    def _write_csv_to_gcs(self, df):
+        """Writes the Pandas DataFrame to a CSV file in GCS."""
+        output_path = f"{self.default_root_dir}/dsgt_run_top_{self.k}_species.csv"
+        df.to_csv(output_path, sep=";", index=False, quoting=csv.QUOTE_NONE)
+
+    def run(self):
+        with spark_resource() as spark:
+            # read data
+            transformed_df = spark.read.parquet(self.default_root_dir)
+
+            # get prepared dataframe
+            pandas_df = self._prepare_and_write_submission(transformed_df)
+            self._write_csv_to_gcs(pandas_df)
 
             # write the output
             with self.output().open("w") as f:

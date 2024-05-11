@@ -194,7 +194,32 @@ class Workflow(luigi.Task):
                 final_output_path = self.output_path.replace(
                     self.output_path.split("/")[-1], subset_path
                 )
-            # Make classifications using pre-trained Dino
+            yield [
+                ProcessDino(
+                    input_path=self.input_path,
+                    output_path=f"{final_output_path}/dino",
+                    should_subset=subset,
+                    sample_id=i,
+                    num_sample_id=10,
+                    sample_col=sample_col,
+                    sql_statement=dino_sql_statement,
+                )
+                for i in range(10)
+            ]
+            yield ProcessDCT(
+                input_path=f"{final_output_path}/dino/data",
+                output_path=f"{final_output_path}/dino_dct",
+                should_subset=subset,
+                sample_col=sample_col,
+                sql_statement=dct_sql_statement,
+            )
+            yield ProcessCLS(
+                input_path=f"{final_output_path}/dino/data",
+                output_path=f"{final_output_path}/dino_cls_token",
+                should_subset=subset,
+                sample_col=sample_col,
+                sql_statement=cls_sql_statement,
+            )
             if self.use_pretrained_dino:
                 pretrained_path = setup_pretrained_model()
                 print(f"\ninput_path: {self.input_path}")
@@ -208,33 +233,6 @@ class Workflow(luigi.Task):
                     should_subset=subset,
                     sample_col=sample_col,
                     sql_statement=pretrained_sql_statement,
-                )
-            else:
-                yield [
-                    ProcessDino(
-                        input_path=self.input_path,
-                        output_path=f"{final_output_path}/dino",
-                        should_subset=subset,
-                        sample_id=i,
-                        num_sample_id=10,
-                        sample_col=sample_col,
-                        sql_statement=dino_sql_statement,
-                    )
-                    for i in range(10)
-                ]
-                yield ProcessDCT(
-                    input_path=f"{final_output_path}/dino/data",
-                    output_path=f"{final_output_path}/dino_dct",
-                    should_subset=subset,
-                    sample_col=sample_col,
-                    sql_statement=dct_sql_statement,
-                )
-                yield ProcessCLS(
-                    input_path=f"{final_output_path}/dino/data",
-                    output_path=f"{final_output_path}/dino_cls_token",
-                    should_subset=subset,
-                    sample_col=sample_col,
-                    sql_statement=cls_sql_statement,
                 )
 
         # Train classifier outside of the subset loop
@@ -338,6 +336,7 @@ if __name__ == "__main__":
     if use_pretrained_dino:
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
         output_path = f"{args.gcs_root_path}/data/process/pretrained_dino"
+        default_root_dir = f"{args.gcs_root_path}/models/pretrained-dino"
 
     luigi.build(
         [
