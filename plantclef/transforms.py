@@ -241,7 +241,13 @@ class PretrainedDinoV2(
                     for index, prob in zip(top_indices, top_probs)
                 ]
                 results.append(result)
-            return results
+            # Flatten the results from all grids, get top 5 probabilities
+            flattened_results = [item for grid in results for item in grid[:5]]
+            # Sort by score in descending order
+            sorted_results = sorted(
+                flattened_results, key=lambda x: -list(x.values())[0]
+            )
+            return sorted_results
 
         return predict
 
