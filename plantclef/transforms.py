@@ -205,49 +205,36 @@ class PretrainedDinoV2(
 
     def _make_predict_fn(self):
         """Return PredictBatchFunction using a closure over the model"""
-        self.cid_to_spid = self._load_class_mapping()
 
-        def predict(inputs: np.ndarray) -> np.ndarray:
-            print(f"inputs type: {type(inputs)}\n")
-            images = [Image.open(io.BytesIO(input)) for input in inputs]
-            processed_images = [self.transforms(image).unsqueeze(0) for image in images]
-            batch_input = torch.cat(processed_images).to(self.device)
+        def predict(input_data: list) -> list:
+            # Load all inputs into a batch of images
+            img = Image.open(io.BytesIO(input_data))
+            # Transform and stack images to a single tensor
+            processed_image = self.transforms(img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
-                outputs = self.model(batch_input)
-                # convert logits to probabilities and scale them
+                outputs = self.model(processed_image)
                 probabilities = torch.softmax(outputs, dim=1) * 100
-                # get top 20 probabilities
                 top_probs, top_indices = torch.topk(probabilities, k=20)
 
-            top_probs = top_probs.cpu().numpy()
-            top_indices = top_indices.cpu().numpy()
+            top_probs = top_probs.cpu().numpy()[0]
+            top_indices = top_indices.cpu().numpy()[0]
 
-            # Convert top indices and probabilities to a dictionary {species_id: probability}
-            batch_results = []
-            for probs, indices in zip(top_probs, top_indices):
-                batch_results.append(
-                    {
-                        self.cid_to_spid[index]: float(prob)
-                        for index, prob in zip(indices, probs)
-                    }
-                )
-            return batch_results
+            # Convert top indices and probabilities to a dictionary
+            result = [
+                {self.cid_to_spid.get(index, "Unknown"): float(prob)}
+                for index, prob in zip(top_indices, top_probs)
+            ]
+            return result
 
         return predict
 
-    def _transform(self, df):
-        predict_udf = F.udf(
-            self._make_predict_fn(), ArrayType(MapType(StringType(), FloatType()))
-        )
-        return df.withColumn(self.getOutputCol(), predict_udf(df[self.getInputCol()]))
+    def _transform(self, df: DataFrame):
+        # Create a UDF from the predict function
+        predict_fn = self._make_predict_fn()
+        predict_udf = F.udf(predict_fn, ArrayType(MapType(StringType(), FloatType())))
 
-    # def _transform(self, df: DataFrame):
-    #     return df.withColumn(
-    #         self.getOutputCol(),
-    #         predict_batch_udf(
-    #             make_predict_fn=self._make_predict_fn,
-    #             return_type=ArrayType(MapType(StringType(), FloatType())),
-    #             batch_size=self.batch_size,
-    #         )(self.getInputCol()),
-    #     )
+        return df.withColumn(
+            self.getOutputCol(),
+            predict_udf(self.getInputCol()),
+        )
