@@ -13,7 +13,7 @@ from plantclef.transforms import DCTN, ExtractCLSToken, PretrainedDinoV2, Wrappe
 from plantclef.utils import spark_resource
 
 from .classifier import TrainDCTEmbeddingClassifier
-from .inference import InferenceTask
+from .inference import InferenceTask, PretrainedInferenceTask
 
 
 class ProcessBase(luigi.Task):
@@ -233,6 +233,10 @@ class Workflow(luigi.Task):
                     should_subset=subset,
                     sample_col=sample_col,
                     sql_statement=pretrained_sql_statement,
+                )
+                yield PretrainedInferenceTask(
+                    default_root_dir=self.default_root_dir,
+                    k=5,
                 )
 
         # Train classifier outside of the subset loop
