@@ -188,13 +188,14 @@ class InferenceTask(luigi.Task):
 
 
 class PretrainedInferenceTask(luigi.Task):
+    input_path = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     k = luigi.OptionalIntParameter(default=5)
 
     def output(self):
         # save the model run
         return luigi.contrib.gcs.GCSTarget(
-            f"{self.default_root_dir}/experiments/_SUCCESS"
+            f"{self.default_root_dir}/top_{self.k}_species/_SUCCESS"
         )
 
     def _format_species_ids(self, species_ids: list) -> str:
@@ -226,13 +227,16 @@ class PretrainedInferenceTask(luigi.Task):
 
     def _write_csv_to_gcs(self, df):
         """Writes the Pandas DataFrame to a CSV file in GCS."""
-        output_path = f"{self.default_root_dir}/dsgt_run_top_{self.k}_species.csv"
+        top_species = f"top_{self.k}_species"
+        file_name = f"dsgt_run_{top_species}.csv"
+        output_path = f"{self.default_root_dir}/{top_species}/{file_name}"
         df.to_csv(output_path, sep=";", index=False, quoting=csv.QUOTE_NONE)
 
     def run(self):
         with spark_resource() as spark:
             # read data
-            transformed_df = spark.read.parquet(self.default_root_dir)
+            transformed_df = spark.read.parquet(self.input_path)
+            transformed_df = transformed_df.orderBy("image_name")
 
             # get prepared dataframe
             pandas_df = self._prepare_and_write_submission(transformed_df)
