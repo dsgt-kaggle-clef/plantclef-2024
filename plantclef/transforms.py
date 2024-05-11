@@ -197,6 +197,7 @@ class PretrainedDinoV2(
         self.transforms = timm.data.create_transform(
             **self.data_config, is_training=False
         )
+        self.cid_to_spid = self._load_class_mapping()
 
     def _load_class_mapping(self):
         with open(self.class_mapping_file) as f:
