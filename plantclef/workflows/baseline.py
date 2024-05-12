@@ -138,6 +138,8 @@ class ProcessCLS(ProcessBase):
 class ProcessPretrainedDino(ProcessBase):
     sql_statement = luigi.Parameter()
     pretrained_path = luigi.Parameter()
+    use_grid = luigi.OptionalBoolParameter(default=False)
+    grid_size = luigi.OptionalIntParameter(default=3)
 
     @property
     def feature_columns(self) -> list:
@@ -148,6 +150,8 @@ class ProcessPretrainedDino(ProcessBase):
             pretrained_path=self.pretrained_path,
             input_col="data",
             output_col="dino_logits",
+            use_grid=self.use_grid,
+            grid_size=self.grid_size,
         )
         return Pipeline(
             stages=[pretrained_dino, SQLTransformer(statement=self.sql_statement)]
@@ -161,6 +165,7 @@ class Workflow(luigi.Task):
     process_test_data = luigi.OptionalBoolParameter(default=False)
     use_cls_token = luigi.OptionalBoolParameter(default=False)
     use_pretrained_dino = luigi.OptionalBoolParameter(default=False)
+    use_grid = luigi.OptionalBoolParameter(default=False)
 
     def run(self):
         # training workflow parameters
@@ -196,6 +201,10 @@ class Workflow(luigi.Task):
                 )
             if self.use_pretrained_dino:
                 pretrained_path = setup_pretrained_model()
+                data_path = "dino_pretrained"
+                if self.use_grid:
+                    grid_size = 3
+                    data_path = f"{data_path}_grid_{grid_size}x{grid_size}"
                 print(f"\ninput_path: {self.input_path}")
                 print(f"pretrained_path: {pretrained_path}")
                 print(f"subset: {subset}")
@@ -203,15 +212,17 @@ class Workflow(luigi.Task):
                 yield ProcessPretrainedDino(
                     pretrained_path=pretrained_path,
                     input_path=self.input_path,
-                    output_path=f"{final_output_path}/dino_pretrained",
+                    output_path=f"{final_output_path}/{data_path}",
                     should_subset=subset,
                     sample_col=sample_col,
                     sql_statement=pretrained_sql_statement,
+                    use_grid=self.use_grid,
+                    grid_size=grid_size,
                 )
                 yield PretrainedInferenceTask(
-                    input_path=f"{final_output_path}/dino_pretrained/data",
+                    input_path=f"{final_output_path}/{data_path}/data",
                     default_root_dir=self.default_root_dir,
-                    k=20,
+                    k=5,
                 )
             else:
                 yield [
@@ -320,7 +331,13 @@ def parse_args():
         "--use-pretrained-dino",
         type=bool,
         default=False,
-        help="If True, use the pretrained DINOv2 ViT model to extract embeddings from images",
+        help="If True, use the pretrained DINOv2 ViT model to make predictions",
+    )
+    parser.add_argument(
+        "--use-grid",
+        type=bool,
+        default=False,
+        help="If True, create a grid when using the pretrained ViT model to make predictions",
     )
     return parser.parse_args()
 
@@ -343,6 +360,7 @@ if __name__ == "__main__":
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
         output_path = f"{args.gcs_root_path}/data/process/pretrained_dino"
         default_root_dir = f"{args.gcs_root_path}/models/pretrained-dino"
+        use_grid = args.use_grid
 
     luigi.build(
         [
@@ -353,6 +371,7 @@ if __name__ == "__main__":
                 process_test_data=process_test_data,
                 use_cls_token=use_cls_token,
                 use_pretrained_dino=use_pretrained_dino,
+                use_grid=use_grid,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
