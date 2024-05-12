@@ -202,7 +202,7 @@ class Workflow(luigi.Task):
             if self.use_pretrained_dino:
                 pretrained_path = setup_pretrained_model()
                 data_path = "dino_pretrained"
-                grid_size = 5
+                grid_size = 3
                 if self.use_grid:
                     data_path = f"{data_path}_grid_{grid_size}x{grid_size}"
                 print(f"\ninput_path: {self.input_path}")
