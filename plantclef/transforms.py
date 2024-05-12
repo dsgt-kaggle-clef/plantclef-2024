@@ -221,12 +221,14 @@ class PretrainedDinoV2(
     def _make_predict_fn(self):
         def predict(input_data):
             img = Image.open(io.BytesIO(input_data))
+            k = 20
+            limit_logits = 20
+            images = [img]
+            # Use grid to get logits
             if self.use_grid:
                 images = self._split_into_grid(img)
                 k = 10
-            else:
-                images = [img]
-                k = 20
+                limit_logits = 5
             results = []
             for img in images:
                 processed_image = self.transforms(img).unsqueeze(0).to(self.device)
@@ -242,7 +244,9 @@ class PretrainedDinoV2(
                 ]
                 results.append(result)
             # Flatten the results from all grids, get top 5 probabilities
-            flattened_results = [item for grid in results for item in grid[:5]]
+            flattened_results = [
+                item for grid in results for item in grid[:limit_logits]
+            ]
             # Sort by score in descending order
             sorted_results = sorted(
                 flattened_results, key=lambda x: -list(x.values())[0]
@@ -253,9 +257,7 @@ class PretrainedDinoV2(
 
     def _transform(self, df: DataFrame):
         predict_fn = self._make_predict_fn()
-        predict_udf = F.udf(
-            predict_fn, ArrayType(ArrayType(MapType(StringType(), FloatType())))
-        )
+        predict_udf = F.udf(predict_fn, ArrayType(MapType(StringType(), FloatType())))
         return df.withColumn(
             self.getOutputCol(), predict_udf(F.col(self.getInputCol()))
         )

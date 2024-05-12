@@ -191,12 +191,15 @@ class PretrainedInferenceTask(luigi.Task):
     input_path = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     k = luigi.OptionalIntParameter(default=5)
+    use_grid = luigi.OptionalBoolParameter(default=False)
+    grid_size = luigi.OptionalIntParameter(default=3)
 
     def output(self):
         # save the model run
-        return luigi.contrib.gcs.GCSTarget(
-            f"{self.default_root_dir}/top_{self.k}_species/_SUCCESS"
-        )
+        output_path = f"{self.default_root_dir}/top_{self.k}_species/_SUCCESS"
+        if self.use_grid:
+            output_path = f"{self.default_root_dir}/top_{self.k}_species_grid_{self.grid_size}x{self.grid_size}/_SUCCESS"
+        return luigi.contrib.gcs.GCSTarget(output_path)
 
     def _format_species_ids(self, species_ids: list) -> str:
         """Formats the species IDs in single square brackets, separated by commas."""
@@ -228,9 +231,12 @@ class PretrainedInferenceTask(luigi.Task):
 
     def _write_csv_to_gcs(self, df):
         """Writes the Pandas DataFrame to a CSV file in GCS."""
-        top_species = f"top_{self.k}_species"
-        file_name = f"dsgt_run_{top_species}.csv"
-        output_path = f"{self.default_root_dir}/{top_species}/{file_name}"
+        folder_name = f"top_{self.k}_species"
+        if self.use_grid:
+            grid_name = f"grid_{self.grid_size}x{self.grid_size}"
+            folder_name = f"{folder_name}_{grid_name}"
+        file_name = f"dsgt_run_{folder_name}.csv"
+        output_path = f"{self.default_root_dir}/{folder_name}/{file_name}"
         df.to_csv(output_path, sep=";", index=False, quoting=csv.QUOTE_NONE)
 
     def run(self):

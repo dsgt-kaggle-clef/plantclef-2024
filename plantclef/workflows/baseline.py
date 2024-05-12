@@ -202,8 +202,8 @@ class Workflow(luigi.Task):
             if self.use_pretrained_dino:
                 pretrained_path = setup_pretrained_model()
                 data_path = "dino_pretrained"
+                grid_size = 3
                 if self.use_grid:
-                    grid_size = 3
                     data_path = f"{data_path}_grid_{grid_size}x{grid_size}"
                 print(f"\ninput_path: {self.input_path}")
                 print(f"pretrained_path: {pretrained_path}")
@@ -223,6 +223,8 @@ class Workflow(luigi.Task):
                     input_path=f"{final_output_path}/{data_path}/data",
                     default_root_dir=self.default_root_dir,
                     k=5,
+                    use_grid=self.use_grid,
+                    grid_size=grid_size,
                 )
             else:
                 yield [
