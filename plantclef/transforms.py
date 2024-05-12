@@ -196,8 +196,8 @@ class PretrainedDinoV2(
             **self.data_config, is_training=False
         )
         self.cid_to_spid = self._load_class_mapping()
-        self.grid_size = grid_size
         self.use_grid = use_grid
+        self.grid_size = grid_size
 
     def _load_class_mapping(self):
         with open(self.class_mapping_file) as f:

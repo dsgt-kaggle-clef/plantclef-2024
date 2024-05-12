@@ -205,8 +205,9 @@ class PretrainedInferenceTask(luigi.Task):
 
     def _extract_top_k_species(self, logits: list) -> list:
         """Extracts the top k species from the logits list."""
-        sorted_logits = sorted(logits, key=lambda x: -next(iter(x.values())))
-        return [list(item.keys())[0] for item in sorted_logits[: self.k]]
+        top_logits = [list(item.keys())[0] for item in logits[: self.k]]
+        set_logits = sorted(set(top_logits), key=top_logits.index)
+        return set_logits
 
     def _remove_extension(self, filename: str) -> str:
         """Removes the file extension from the filename."""
