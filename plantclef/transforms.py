@@ -221,13 +221,13 @@ class PretrainedDinoV2(
     def _make_predict_fn(self):
         def predict(input_data):
             img = Image.open(io.BytesIO(input_data))
-            k = 20
+            top_k_proba = 20
             limit_logits = 20
             images = [img]
             # Use grid to get logits
             if self.use_grid:
                 images = self._split_into_grid(img)
-                k = 10
+                top_k_proba = 10
                 limit_logits = 5
             results = []
             for img in images:
@@ -235,7 +235,7 @@ class PretrainedDinoV2(
                 with torch.no_grad():
                     outputs = self.model(processed_image)
                     probabilities = torch.softmax(outputs, dim=1) * 100
-                    top_probs, top_indices = torch.topk(probabilities, k=k)
+                    top_probs, top_indices = torch.topk(probabilities, k=top_k_proba)
                 top_probs = top_probs.cpu().numpy()[0]
                 top_indices = top_indices.cpu().numpy()[0]
                 result = [
