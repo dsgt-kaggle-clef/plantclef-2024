@@ -166,6 +166,7 @@ class Workflow(luigi.Task):
     use_cls_token = luigi.OptionalBoolParameter(default=False)
     use_pretrained_dino = luigi.OptionalBoolParameter(default=False)
     use_grid = luigi.OptionalBoolParameter(default=False)
+    use_only_classifier = luigi.OptionalBoolParameter(default=False)
 
     def run(self):
         # training workflow parameters
@@ -200,11 +201,16 @@ class Workflow(luigi.Task):
                     self.output_path.split("/")[-1], subset_path
                 )
             if self.use_pretrained_dino:
-                pretrained_path = setup_pretrained_model()
-                data_path = "dino_pretrained"
                 grid_size = 3
+                top_k_proba = 5
+                data_path = "dino_pretrained"
+                inference_dir = self.default_root_dir
+                if self.use_only_classifier:
+                    data_path = f"{data_path}_only_classifier"
+                    inference_dir = f"{self.default_root_dir}-only-classifier"
                 if self.use_grid:
                     data_path = f"{data_path}_grid_{grid_size}x{grid_size}"
+                pretrained_path = setup_pretrained_model(self.use_only_classifier)
                 print(f"\ninput_path: {self.input_path}")
                 print(f"pretrained_path: {pretrained_path}")
                 print(f"subset: {subset}")
@@ -221,8 +227,8 @@ class Workflow(luigi.Task):
                 )
                 yield PretrainedInferenceTask(
                     input_path=f"{final_output_path}/{data_path}/data",
-                    default_root_dir=self.default_root_dir,
-                    k=5,
+                    default_root_dir=inference_dir,
+                    k=top_k_proba,
                     use_grid=self.use_grid,
                     grid_size=grid_size,
                 )
@@ -341,6 +347,15 @@ def parse_args():
         default=False,
         help="If True, create a grid when using the pretrained ViT model to make predictions",
     )
+    parser.add_argument(
+        "--use-only-classifier",
+        type=bool,
+        default=False,
+        help="""
+        If True, use the pretrained ViT with frozen backbone, one classification head has been finetuned
+        Otherwise, use the only-classifier-then-all pretrained model,
+        """,
+    )
     return parser.parse_args()
 
 
@@ -363,6 +378,7 @@ if __name__ == "__main__":
         output_path = f"{args.gcs_root_path}/data/process/pretrained_dino"
         default_root_dir = f"{args.gcs_root_path}/models/pretrained-dino"
         use_grid = args.use_grid
+        use_only_classifier = args.use_only_classifier
 
     luigi.build(
         [
@@ -374,6 +390,7 @@ if __name__ == "__main__":
                 use_cls_token=use_cls_token,
                 use_pretrained_dino=use_pretrained_dino,
                 use_grid=use_grid,
+                use_only_classifier=use_only_classifier,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",

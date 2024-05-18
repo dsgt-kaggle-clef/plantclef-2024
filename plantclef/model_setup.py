@@ -2,7 +2,7 @@ import os
 import subprocess
 
 
-def setup_pretrained_model():
+def setup_pretrained_model(use_only_classifier: bool = False):
     """
     Downloads and unzips a model from Google Cloud Storage and returns the path to the specified model file.
     Checks if the model already exists and skips download and extraction if it does.
@@ -11,7 +11,12 @@ def setup_pretrained_model():
     """
     local_directory = "/mnt/data/models"
     tar_filename = "PlantNet_PlantCLEF2024_pretrained_models_on_the_flora_of_south-western_europe.tar"
-    relative_model_path = "pretrained_models/vit_base_patch14_reg4_dinov2_lvd142m_pc24_onlyclassifier_then_all/model_best.pth.tar"
+    pretrained_model = (
+        "vit_base_patch14_reg4_dinov2_lvd142m_pc24_onlyclassifier_then_all"
+    )
+    if use_only_classifier:
+        pretrained_model = "vit_base_patch14_reg4_dinov2_lvd142m_pc24_onlyclassifier"
+    relative_model_path = f"pretrained_models/{pretrained_model}/model_best.pth.tar"
     full_model_path = os.path.join(local_directory, relative_model_path)
 
     # Check if the model file already exists
