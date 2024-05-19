@@ -261,3 +261,72 @@ class PretrainedDinoV2(
         return df.withColumn(
             self.getOutputCol(), predict_udf(F.col(self.getInputCol()))
         )
+
+
+class WrappedPretrainedDinoV2(
+    Transformer,
+    HasInputCol,
+    HasOutputCol,
+    DefaultParamsReadable,
+    DefaultParamsWritable,
+):
+    """
+    Wrapper for DinoV2 to add it to the pipeline
+    """
+
+    def __init__(
+        self,
+        pretrained_path: str,
+        input_col: str = "input",
+        output_col: str = "output",
+        model_name: str = "vit_base_patch14_reg4_dinov2.lvd142m",
+        batch_size: int = 8,
+    ):
+        super().__init__()
+        self._setDefault(inputCol=input_col, outputCol=output_col)
+        self.pretrained_path = pretrained_path
+        self.model_name = model_name
+        self.batch_size = batch_size
+        self.num_classes = 7806  # total number of plant species
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = timm.create_model(
+            self.model_name,
+            pretrained=False,
+            num_classes=self.num_classes,
+            checkpoint_path=self.pretrained_path,
+        )
+        # Data transform
+        self.data_config = timm.data.resolve_model_data_config(self.model)
+        self.transforms = timm.data.create_transform(
+            **self.data_config, is_training=False
+        )
+        # Move model to GPU if available
+        self.model.to(self.device)
+
+    def _make_predict_fn(self):
+        """Return PredictBatchFunction using a closure over the model"""
+
+        def predict(inputs: np.ndarray) -> np.ndarray:
+            images = [Image.open(io.BytesIO(input)) for input in inputs]
+            model_inputs = torch.stack(
+                [self.transforms(img).to(self.device) for img in images]
+            )
+
+            with torch.no_grad():
+                features = self.model.forward_features(model_inputs)
+                cls_token = features[:, 0, :]
+
+            numpy_array = cls_token.cpu().numpy()
+            return numpy_array
+
+        return predict
+
+    def _transform(self, df: DataFrame):
+        return df.withColumn(
+            self.getOutputCol(),
+            predict_batch_udf(
+                make_predict_fn=self._make_predict_fn,
+                return_type=ArrayType(FloatType()),
+                batch_size=self.batch_size,
+            )(self.getInputCol()),
+        )

@@ -11,11 +11,11 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
 from plantclef.baseline.data import PetastormDataModule
-from plantclef.baseline.model import LinearClassifier
+from plantclef.baseline.model import LinearClassifier, TwoLayerClassifier
 from plantclef.utils import spark_resource
 
 
-class TrainDCTEmbeddingClassifier(luigi.Task):
+class TrainClassifier(luigi.Task):
     input_path = luigi.Parameter()
     feature_col = luigi.Parameter()
     default_root_dir = luigi.Parameter()
