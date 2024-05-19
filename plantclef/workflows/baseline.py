@@ -9,10 +9,16 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from plantclef.model_setup import setup_pretrained_model
-from plantclef.transforms import DCTN, ExtractCLSToken, PretrainedDinoV2, WrappedDinoV2
+from plantclef.transforms import (
+    DCTN,
+    ExtractCLSToken,
+    PretrainedDinoV2,
+    WrappedDinoV2,
+    WrappedPretrainedDinoV2,
+)
 from plantclef.utils import spark_resource
 
-from .classifier import TrainDCTEmbeddingClassifier
+from .classifier import TrainClassifier
 from .inference import InferenceTask, PretrainedInferenceTask
 
 
@@ -135,7 +141,7 @@ class ProcessCLS(ProcessBase):
         )
 
 
-class ProcessPretrainedDino(ProcessBase):
+class ProcessPretrainedDinoInference(ProcessBase):
     sql_statement = luigi.Parameter()
     pretrained_path = luigi.Parameter()
     use_grid = luigi.OptionalBoolParameter(default=False)
@@ -158,15 +164,35 @@ class ProcessPretrainedDino(ProcessBase):
         )
 
 
+class ProcessPretrainedDino(ProcessBase):
+    sql_statement = luigi.Parameter()
+    pretrained_path = luigi.Parameter()
+
+    @property
+    def feature_columns(self) -> list:
+        return ["cls_embedding"]
+
+    def pipeline(self):
+        pretrained_dino = WrappedPretrainedDinoV2(
+            pretrained_path=self.pretrained_path,
+            input_col="data",
+            output_col="cls_embedding",
+        )
+        return Pipeline(
+            stages=[pretrained_dino, SQLTransformer(statement=self.sql_statement)]
+        )
+
+
 class Workflow(luigi.Task):
     input_path = luigi.Parameter()
     output_path = luigi.Parameter()
     default_root_dir = luigi.Parameter()
     process_test_data = luigi.OptionalBoolParameter(default=False)
     use_cls_token = luigi.OptionalBoolParameter(default=False)
-    use_pretrained_dino = luigi.OptionalBoolParameter(default=False)
+    use_pretrained_dino_inference = luigi.OptionalBoolParameter(default=False)
     use_grid = luigi.OptionalBoolParameter(default=False)
     use_only_classifier = luigi.OptionalBoolParameter(default=False)
+    use_pretrained_embeddings = luigi.OptionalBoolParameter(default=False)
 
     def run(self):
         # training workflow parameters
@@ -183,7 +209,7 @@ class Workflow(luigi.Task):
         )
 
         # test workflow parameters
-        if self.process_test_data or self.use_pretrained_dino:
+        if self.process_test_data or self.use_pretrained_dino_inference:
             subset_list = [False]
             train_model = False  # Skip model training
             sample_col = "image_name"
@@ -200,7 +226,8 @@ class Workflow(luigi.Task):
                 final_output_path = self.output_path.replace(
                     self.output_path.split("/")[-1], subset_path
                 )
-            if self.use_pretrained_dino:
+            # use Pretrained model to do inference on test data
+            if self.use_pretrained_dino_inference:
                 grid_size = 3
                 top_k_proba = 5
                 data_path = "dino_pretrained"
@@ -215,7 +242,7 @@ class Workflow(luigi.Task):
                 print(f"pretrained_path: {pretrained_path}")
                 print(f"subset: {subset}")
                 print(f"sample_col: {sample_col}\n")
-                yield ProcessPretrainedDino(
+                yield ProcessPretrainedDinoInference(
                     pretrained_path=pretrained_path,
                     input_path=self.input_path,
                     output_path=f"{final_output_path}/{data_path}",
@@ -232,6 +259,27 @@ class Workflow(luigi.Task):
                     use_grid=self.use_grid,
                     grid_size=grid_size,
                 )
+            # use Pretrained model to extract embeddings
+            elif self.use_pretrained_embeddings:
+                pretrained_path = setup_pretrained_model(use_only_classifier=False)
+                print(f"\ninput_path: {self.input_path}")
+                print(f"pretrained_path: {pretrained_path}")
+                print(f"subset: {subset}")
+                print(f"sample_col: {sample_col}\n")
+                yield [
+                    ProcessPretrainedDino(
+                        pretrained_path=pretrained_path,
+                        input_path=self.input_path,
+                        output_path=f"{final_output_path}/dino_pretrained",
+                        should_subset=subset,
+                        sample_id=i,
+                        num_sample_id=10,
+                        sample_col=sample_col,
+                        sql_statement=cls_sql_statement,
+                    )
+                    for i in range(10)
+                ]
+            # extract embeddings using the vanilla DinoV2 model
             else:
                 yield [
                     ProcessDino(
@@ -261,6 +309,7 @@ class Workflow(luigi.Task):
                 )
 
         # Train classifier outside of the subset loop
+        train_model = False
         if train_model:
             for limit_species in [5, None]:
                 # use the Dino-DCT dataset for training the classifier
@@ -281,7 +330,7 @@ class Workflow(luigi.Task):
                 print(f"\ninput_path: {input_path}")
                 print(f"feature_col: {feature_col}")
                 print(f"default_root: {final_default_dir}\n")
-                yield TrainDCTEmbeddingClassifier(
+                yield TrainClassifier(
                     input_path=input_path,
                     feature_col=feature_col,
                     default_root_dir=final_default_dir,
@@ -336,10 +385,10 @@ def parse_args():
         help="If True, use the CLS token from the DINOv2 ViT model for classification",
     )
     parser.add_argument(
-        "--use-pretrained-dino",
+        "--use-pretrained-dino-inference",
         type=bool,
         default=False,
-        help="If True, use the pretrained DINOv2 ViT model to make predictions",
+        help="If True, use the pretrained DINOv2 ViT model to make predictions on test data",
     )
     parser.add_argument(
         "--use-grid",
@@ -356,6 +405,12 @@ def parse_args():
         Otherwise, use the only-classifier-then-all pretrained model,
         """,
     )
+    parser.add_argument(
+        "--use-pretrained-embeddings",
+        type=bool,
+        default=False,
+        help="If True, process the embeddings using the pretrained ViT model",
+    )
     return parser.parse_args()
 
 
@@ -367,18 +422,19 @@ if __name__ == "__main__":
     default_root_dir = f"{args.gcs_root_path}/{args.model_dir_path}"
     process_test_data = args.process_test_data
     use_cls_token = args.use_cls_token
-    use_pretrained_dino = args.use_pretrained_dino
+    use_pretrained_dino_inference = args.use_pretrained_dino_inference
+    use_grid = args.use_grid
+    use_only_classifier = args.use_only_classifier
+    use_pretrained_embeddings = args.use_pretrained_embeddings
 
     # update workflow parameters for processing test data
     if process_test_data:
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
         output_path = f"{args.gcs_root_path}/data/process/test_v1"
-    if use_pretrained_dino:
+    if use_pretrained_dino_inference:
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
         output_path = f"{args.gcs_root_path}/data/process/pretrained_dino"
         default_root_dir = f"{args.gcs_root_path}/models/pretrained-dino"
-        use_grid = args.use_grid
-        use_only_classifier = args.use_only_classifier
 
     luigi.build(
         [
@@ -388,9 +444,10 @@ if __name__ == "__main__":
                 default_root_dir=default_root_dir,
                 process_test_data=process_test_data,
                 use_cls_token=use_cls_token,
-                use_pretrained_dino=use_pretrained_dino,
+                use_pretrained_dino_inference=use_pretrained_dino_inference,
                 use_grid=use_grid,
                 use_only_classifier=use_only_classifier,
+                use_pretrained_embeddings=use_pretrained_embeddings,
             )
         ],
         scheduler_host="services.us-central1-a.c.dsgt-clef-2024.internal",
