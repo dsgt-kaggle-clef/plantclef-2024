@@ -328,7 +328,7 @@ class Workflow(luigi.Task):
                     input_path = f"{self.output_path}/{data_path}"
                     feature_col = "cls_embedding"
                     final_default_dir = f"{final_default_dir}-pretrained-cls"
-                    two_layer, asl_loss = True, True
+                    # two_layer, asl_loss = True, True
                 if limit_species:
                     final_default_dir = (
                         f"{final_default_dir}-limit-species-{limit_species}"
