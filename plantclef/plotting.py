@@ -10,8 +10,9 @@ def plot_images_from_binary(df, data_col: str, image_col: str, grid_size=(3, 3))
     """
     Display images in a grid with binomial names as labels.
 
-    :param image_data_list: List of binary image data.
-    :param binomial_names: List of binomial names corresponding to each image.
+    :param df: DataFrame with the embeddings data.
+    :param data_col: Name of the data column.
+    :param image_col: Name of the species being displayed as image labels.
     :param grid_size: Tuple (rows, cols) representing the grid size.
     """
     # Unpack the number of rows and columns for the grid
@@ -43,10 +44,11 @@ def plot_images_from_binary(df, data_col: str, image_col: str, grid_size=(3, 3))
 
 def plot_images_from_embeddings(df, data_col: str, image_col: str, grid_size=(3, 3)):
     """
-    Display images in a grid with binomial names as labels.
+    Display images in a grid with species names as labels.
 
-    :param image_data_list: List of binary image data.
-    :param binomial_names: List of binomial names corresponding to each image.
+    :param df: DataFrame with the embeddings data.
+    :param data_col: Name of the data column.
+    :param image_col: Name of the species being displayed as image labels.
     :param grid_size: Tuple (rows, cols) representing the grid size.
     """
     # Unpack the number of rows and columns for the grid
