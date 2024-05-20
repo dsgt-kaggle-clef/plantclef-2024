@@ -153,11 +153,11 @@ class InferenceTask(luigi.Task):
             broadcast_model = sc.broadcast(model)
 
             @pandas_udf("long")  # Adjust the return type based on model's output
-            def predict_udf(dct_embedding_series: pd.Series) -> pd.Series:
+            def predict_udf(embedding_series: pd.Series) -> pd.Series:
                 local_model = broadcast_model.value  # Access the broadcast variable
                 local_model.eval()  # Set the model to evaluation mode
                 # Convert the list of numpy arrays to a single numpy array
-                embeddings_array = np.array(list(dct_embedding_series))
+                embeddings_array = np.array(list(embedding_series))
                 # Convert the numpy array to a PyTorch tensor
                 embeddings_tensor = torch.tensor(embeddings_array, dtype=torch.float32)
                 # Make predictions

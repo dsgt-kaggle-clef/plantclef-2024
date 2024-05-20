@@ -23,6 +23,8 @@ class TrainClassifier(luigi.Task):
     species_image_count = luigi.IntParameter(default=100)
     batch_size = luigi.IntParameter(default=32)
     num_partitions = luigi.IntParameter(default=32)
+    two_layer = luigi.OptionalBoolParameter(default=False)
+    asl_loss = luigi.OptionalBoolParameter(default=False)
 
     def output(self):
         # save the model run
@@ -49,10 +51,10 @@ class TrainClassifier(luigi.Task):
             num_classes = int(data_module.train_data.select("label").distinct().count())
 
             # model module
-            model = LinearClassifier(
-                num_features,
-                num_classes,
-            )
+            if self.two_layer:
+                model = TwoLayerClassifier(num_features, num_classes, self.asl_loss)
+            else:
+                model = LinearClassifier(num_features, num_classes)
 
             # initialise the wandb logger and name your wandb project
             wandb_logger = WandbLogger(
