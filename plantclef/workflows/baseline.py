@@ -309,7 +309,6 @@ class Workflow(luigi.Task):
                 )
 
         # Train classifier outside of the subset loop
-        train_model = False
         if train_model:
             for limit_species in [5, None]:
                 # use the Dino-DCT dataset for training the classifier
@@ -317,29 +316,36 @@ class Workflow(luigi.Task):
                 input_path = f"{self.output_path}/{data_path}"
                 feature_col = "dct_embedding"
                 final_default_dir = self.default_root_dir
+                two_layer, asl_loss = False, False
                 # use the CLS token dataset for training the classifier
                 if self.use_cls_token:
                     data_path = "dino_cls_token/data"
                     input_path = f"{self.output_path}/{data_path}"
                     feature_col = "cls_embedding"
                     final_default_dir = f"{final_default_dir}-cls-token"
+                elif self.use_pretrained_embeddings:
+                    data_path = "dino_pretrained/data"
+                    input_path = f"{self.output_path}/{data_path}"
+                    feature_col = "cls_embedding"
+                    final_default_dir = f"{final_default_dir}-pretrained-cls"
+                    two_layer, asl_loss = True, True
                 if limit_species:
                     final_default_dir = (
                         f"{final_default_dir}-limit-species-{limit_species}"
                     )
-                print(f"\ninput_path: {input_path}")
-                print(f"feature_col: {feature_col}")
-                print(f"default_root: {final_default_dir}\n")
+                # train model
                 yield TrainClassifier(
                     input_path=input_path,
                     feature_col=feature_col,
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,
+                    two_layer=two_layer,
+                    asl_loss=asl_loss,
                 )
                 # model inference
                 yield InferenceTask(
                     input_path=input_path,
-                    test_path=f"test_v1/{data_path}",
+                    test_path=f"test_v2/{data_path}",
                     feature_col=feature_col,
                     default_root_dir=final_default_dir,
                     limit_species=limit_species,
@@ -430,7 +436,7 @@ if __name__ == "__main__":
     # update workflow parameters for processing test data
     if process_test_data:
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
-        output_path = f"{args.gcs_root_path}/data/process/test_v1"
+        output_path = f"{args.gcs_root_path}/data/process/test_v2"
     if use_pretrained_dino_inference:
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
         output_path = f"{args.gcs_root_path}/data/process/pretrained_dino"
