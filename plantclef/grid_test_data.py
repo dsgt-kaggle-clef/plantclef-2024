@@ -4,6 +4,7 @@ import io
 from PIL import Image
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
+from pyspark.sql.functions import PandasUDFType, pandas_udf
 from pyspark.sql.types import ArrayType, BinaryType
 
 from plantclef.utils import get_spark
@@ -53,13 +54,22 @@ def parse_args():
         description="Process images and metadata for a dataset stored on GCS."
     )
     parser.add_argument(
-        "--cores", type=int, default=4, help="Number of cores used in Spark driver"
-    )
-    parser.add_argument(
         "--memory",
         type=str,
         default="8g",
         help="Amount of memory to use in Spark driver",
+    )
+    parser.add_argument(
+        "--executor-memory",
+        type=str,
+        default="1g",
+        help="Amount of memory to use in Spark executors",
+    )
+    parser.add_argument(
+        "--num-partitions",
+        type=int,
+        default=500,
+        help="Number of partitions",
     )
     parser.add_argument(
         "--gcs-root-path",
@@ -71,7 +81,7 @@ def parse_args():
         "--input-name-path",
         type=str,
         default="data/parquet_files/PlantCLEF2024_test",
-        help="Root directory for training data in GCS",
+        help="Root directory for test data in GCS",
     )
     parser.add_argument(
         "--output-name-path",
@@ -96,17 +106,28 @@ def main():
     output_path = f"{args.gcs_root_path}/{args.output_name_path}"
 
     # Initialize Spark with settings for using the big-disk-dev VM
+    print(f"\ninput path: {input_path}")
+    print(f"output path: {output_path}")
+    print(f"memory: {args.memory}")
+    print(f"num_partitions: {args.num_partitions}\n")
     spark = get_spark(
-        cores=args.cores, memory=args.memory, **{"spark.sql.shuffle.partitions": 200}
+        memory=args.memory,
+        executor_memory=args.executor_memory,
+        **{"spark.sql.shuffle.partitions": args.num_partitions},
     )
+    df = spark.read.parquet(input_path)
+
     # read data
     df = spark.read.parquet(input_path)
+    # df = df.limit(100).cache()
 
     # get final dataframe
     final_df = process_grid_df(df, grid_size=args.grid_size)
 
     # Write the DataFrame to GCS in Parquet format
-    final_df.write.mode("overwrite").parquet(output_path)
+    final_df.repartition(args.num_partitions).write.mode("overwrite").parquet(
+        output_path
+    )
 
 
 if __name__ == "__main__":
