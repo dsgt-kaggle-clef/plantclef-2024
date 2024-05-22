@@ -268,7 +268,7 @@ class Workflow(luigi.Task):
                 # Process grid dataset
                 if self.use_grid and self.process_test_data:
                     sql_statement = (
-                        "SELECT image_name, patch_number, data FROM __THIS__"
+                        "SELECT image_name, patch_number, cls_embedding FROM __THIS__"
                     )
                     # update input and output paths for dino embeddings
                     input_path = f"{self.input_path}/grid_test_data"
