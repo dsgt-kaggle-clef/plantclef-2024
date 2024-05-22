@@ -262,20 +262,33 @@ class Workflow(luigi.Task):
             # use Pretrained model to extract embeddings
             elif self.use_pretrained_embeddings:
                 pretrained_path = setup_pretrained_model(use_only_classifier=False)
-                print(f"\ninput_path: {self.input_path}")
+                input_path = self.input_path
+                output_path = f"{final_output_path}/dino_pretrained"
+                sql_statement = cls_sql_statement
+                # Process grid dataset
+                if self.use_grid and self.process_test_data:
+                    sql_statement = (
+                        "SELECT image_name, patch_number, data FROM __THIS__"
+                    )
+                    # update input and output paths for dino embeddings
+                    input_path = f"{self.input_path}/grid_test_data"
+                    output_path = f"{final_output_path}/grid_dino_pretrained"
+
+                print(f"\ninput_path: {input_path}")
+                print(f"output_path: {output_path}")
                 print(f"pretrained_path: {pretrained_path}")
                 print(f"subset: {subset}")
                 print(f"sample_col: {sample_col}\n")
                 yield [
                     ProcessPretrainedDino(
                         pretrained_path=pretrained_path,
-                        input_path=self.input_path,
-                        output_path=f"{final_output_path}/dino_pretrained",
+                        input_path=input_path,
+                        output_path=output_path,
                         should_subset=subset,
                         sample_id=i,
                         num_sample_id=10,
                         sample_col=sample_col,
-                        sql_statement=cls_sql_statement,
+                        sql_statement=sql_statement,
                     )
                     for i in range(10)
                 ]
@@ -309,6 +322,7 @@ class Workflow(luigi.Task):
                 )
 
         # Train classifier outside of the subset loop
+        train_model = False
         if train_model:
             for limit_species in [5, None]:
                 # use the Dino-DCT dataset for training the classifier
@@ -441,6 +455,8 @@ if __name__ == "__main__":
         input_path = f"{args.gcs_root_path}/data/parquet_files/PlantCLEF2024_test"
         output_path = f"{args.gcs_root_path}/data/process/pretrained_dino"
         default_root_dir = f"{args.gcs_root_path}/models/pretrained-dino"
+    if use_pretrained_embeddings and use_grid:
+        input_path = f"{args.gcs_root_path}/data/process/test_v2"
 
     luigi.build(
         [
